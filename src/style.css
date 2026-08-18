@@ -4,7 +4,7 @@ body{margin:0}
 img{display:block;max-width:100%;height:auto}
 :root{
 --bg:#0a0a0a;--panel:#101010;--line:#262626;
---green:#96FF00;--fg:#ededed;--mut:#9a9a9a;
+--green:#96FF00;--orange:#ff7700;--fg:#ededed;--mut:#9a9a9a;
 --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
 --mono:ui-monospace,SFMono-Regular,"Cascadia Mono",Menlo,Consolas,monospace;
 --wrap:1060px}
@@ -33,6 +33,7 @@ h1{font:800 clamp(28px,5vw,44px)/1.12 var(--sans);letter-spacing:.01em;text-tran
 .tab{display:flex;align-items:stretch;background:#0d0d0d;border-bottom:1px solid var(--line)}
 .tab span{font:700 11px/26px var(--mono);letter-spacing:.12em;padding:0 10px;white-space:nowrap}
 .tab i{flex:1;background:var(--green);clip-path:polygon(22px 0,100% 0,100% 100%,0 100%)}
+.tab i.orange{background:var(--orange);}
 .media{display:block;aspect-ratio:460/215;background:#000;border-bottom:1px solid var(--line)}
 .media img{width:100%;height:100%;object-fit:cover}
 .card-body{padding:18px;display:flex;flex-direction:column;gap:12px;flex:1}
@@ -59,6 +60,8 @@ h1{font:800 clamp(28px,5vw,44px)/1.12 var(--sans);letter-spacing:.01em;text-tran
 .icon-link svg{width:20px;height:20px;flex:none}
 .icon-link span{border-bottom:1px solid #333;transition:border-color .15s}
 .icon-link:hover span{border-color:var(--green)}
+.check-list li{display:flex;align-items:flex-start;gap:9px}
+.check-list svg{width:20px;height:20px;flex:none;margin-top:2px;color:var(--green)}
 .site-foot{border-top:1px solid var(--line);background:#080808;margin-top:44px}
 .foot-in{max-width:var(--wrap);margin:0 auto;padding:22px 20px;text-align:center;display:grid;gap:10px}
 .foot-nav{display:flex;justify-content:center;gap:18px;flex-wrap:wrap;list-style:none;margin:0;padding:0}
