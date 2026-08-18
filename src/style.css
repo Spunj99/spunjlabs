@@ -55,6 +55,10 @@ h1{font:800 clamp(28px,5vw,44px)/1.12 var(--sans);letter-spacing:.01em;text-tran
 .link-list a{color:var(--fg);text-decoration:none;border-bottom:1px solid #333;transition:color .15s,border-color .15s}
 .link-list a:hover{color:var(--green);border-color:var(--green)}
 .link-list .note{color:var(--mut)}
+.icon-link{display:inline-flex;align-items:center;gap:9px;border-bottom:0!important}
+.icon-link svg{width:20px;height:20px;flex:none}
+.icon-link span{border-bottom:1px solid #333;transition:border-color .15s}
+.icon-link:hover span{border-color:var(--green)}
 .site-foot{border-top:1px solid var(--line);background:#080808;margin-top:44px}
 .foot-in{max-width:var(--wrap);margin:0 auto;padding:22px 20px;text-align:center;display:grid;gap:10px}
 .foot-nav{display:flex;justify-content:center;gap:18px;flex-wrap:wrap;list-style:none;margin:0;padding:0}
