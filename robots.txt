@@ -1,4 +1,6 @@
 User-agent: *
 Allow: /
+# RVGD scoreboard assets and photos (the /rvgd page itself carries a noindex tag, so it stays crawlable)
+Disallow: /rvgd-app/
 
 Sitemap: https://spunjlabs.com/sitemap.xml
