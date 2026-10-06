@@ -3,6 +3,9 @@
 
 export const DEFAULT_SCORING = { points: [10, 8, 7, 6], wackChip: false };
 
+// 0-based finishing place of the player at index i of a game's placings.
+export const placeOf = (g, i) => g.team ? (i < g.winners ? 0 : 1) : i;
+
 export function computeStandings(players, games, scoring = DEFAULT_SCORING) {
   const pts = scoring.points || DEFAULT_SCORING.points;
   const wack = !!scoring.wackChip;
@@ -14,9 +17,14 @@ export function computeStandings(players, games, scoring = DEFAULT_SCORING) {
 
   for (const g of games) {
     const pl = g.placings || [];
-    if (pl.length !== 4 || pl.some(id => !tot[id])) { perGame[g.id] = { bonus: null, holder, value: held }; continue; }
+    const bad = pl.length !== 4 || pl.some(id => !tot[id]) || (g.team && !(g.winners >= 1 && g.winners <= 3));
+    if (bad) { perGame[g.id] = { bonus: null, holder, value: held }; continue; }
 
-    pl.forEach((id, i) => { const t = tot[id]; t.base += pts[i] || 0; t.places[i]++; t.played++; });
+    // Team games: placings are winners then losers; winners score as 1st, losers as 2nd.
+    pl.forEach((id, i) => {
+      const r = placeOf(g, i), t = tot[id];
+      t.base += pts[r] || 0; t.places[r]++; t.played++;
+    });
 
     // The chip pays out at the end of every game it is held: +1, +2, +3...
     let bonus = null;
@@ -95,6 +103,14 @@ export function selfTest() {
   // Ranking tiebreak: equal points, more wins first.
   r = computeStandings(Q, [g(1, ['x', 'y', 'z', 'w']), g(2, ['z', 'w', 'y', 'x'])], { points: [10, 8, 8, 6], wackChip: false });
   check('tiebreak by wins', pts(r, 'x') === 16 && pts(r, 'y') === 16 && r.table[1].id === 'x');
+
+  // Team game: winners get 1st points, losers 2nd points.
+  r = computeStandings(Q, [{ id: 1, team: true, winners: 2, placings: ['x', 'y', 'z', 'w'] }], on([10, 8, 7, 6]));
+  check('team 2v2 scores 10/10/8/8', [pts(r, 'x'), pts(r, 'y'), pts(r, 'z'), pts(r, 'w')].join() === '10,10,8,8');
+  check('team places counted as 1st/2nd', r.table.find(t => t.id === 'z').places.join() === '0,1,0,0');
+  check('team tie for last gives chip to a loser', ['z', 'w'].includes(r.chip.holder));
+  r = computeStandings(Q, [{ id: 1, team: true, winners: 1, placings: ['x', 'y', 'z', 'w'] }], on([10, 8, 7, 6]));
+  check('team 1v3', pts(r, 'x') === 10 && pts(r, 'w') === 8);
 
   // Editing an earlier game re-flows the chip history.
   const e = [g(1, ['x', 'y', 'z', 'w']), g(2, ['x', 'y', 'z', 'w'])];

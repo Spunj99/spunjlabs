@@ -1,5 +1,5 @@
 import { createStore } from './store.js';
-import { computeStandings, DEFAULT_SCORING, selfTest } from './score.js';
+import { computeStandings, placeOf, DEFAULT_SCORING, selfTest } from './score.js';
 
 // ---- config: paste from Firebase console > Project settings > Your apps ----
 // These are public identifiers, not secrets. Security comes from firestore.rules.
@@ -170,7 +170,8 @@ function renderTournament() {
   const ps = players();
   const st = S.st = computeStandings(ps, S.games, scoring());
   const last = S.games[S.games.length - 1];
-  const picker = last && pById(last.placings?.[3]);
+  // Loser picks next; after a team game, the losing team does.
+  const pickers = (last?.placings || []).filter((_, i) => placeOf(last, i) === (last.team ? 1 : 3)).map(pById).filter(Boolean);
   const chipP = st.chip && pById(st.chip.holder);
   const champ = !live() && st.table[0] && pById(st.table[0].id);
 
@@ -180,11 +181,16 @@ function renderTournament() {
     const pg = st.perGame[g.id] || {};
     const cls = isNew(g.id) ? ' new' : g.id === S.flash ? ' flash' : '';
     return `<button class="row${cls}" type="button" data-id="${esc(g.id)}" ${live() ? '' : 'disabled'} aria-label="Game ${i + 1}: ${esc(g.name)}">
-      <div class="g">${g.cover ? `<img class="cv" src="${esc(g.cover)}" alt="" loading="lazy" decoding="async">` : ''}<span class="gt"><i>#${i + 1}</i><span>${esc(g.name)}</span></span></div>
+      <div class="g">${g.cover ? `<img class="cv" src="${esc(g.cover)}" alt="" loading="lazy" decoding="async">` : ''}<span class="gt"><i>#${i + 1}${g.team ? ' &middot; TEAM' : ''}</i><span>${esc(g.name)}</span></span></div>
       ${[0, 1, 2, 3].map(k => {
-        const p = pById(g.placings?.[k]);
-        const b = pg.bonus && pg.bonus.player === p?.id ? `<span class="chipb">${chipIcon()}+${pg.bonus.amount}</span>` : '';
-        return `<div class="c${k === 0 ? ' p1' : ''}"><span class="nm" ${pc(p)}>${esc(p?.name || '-')}</span>${b}</div>`;
+        // Team games stack each team in the 1st and 2nd columns.
+        const ids = (g.placings || []).filter((_, j) => placeOf(g, j) === k);
+        const cell = ids.map(id => {
+          const p = pById(id);
+          const b = pg.bonus && pg.bonus.player === id ? `<span class="chipb">${chipIcon()}+${pg.bonus.amount}</span>` : '';
+          return `<span class="nm" ${pc(p)}>${esc(p?.name || '?')}</span>${b}`;
+        }).join('') || `<span class="nm dim">-</span>`;
+        return `<div class="c${k === 0 ? ' p1' : ''}${ids.length > 1 ? ' multi' : ''}">${cell}</div>`;
       }).join('')}
     </button>`;
   }).reverse().join('');
@@ -192,7 +198,7 @@ function renderTournament() {
   $('#view').innerHTML = `
     ${champ ? `<div class="champ"><small>&#9733; CHAMPION &#9733;</small><strong>${esc(champ.name)}</strong></div>` : ''}
     <div class="banner">
-      ${live() && picker ? `<span class="pill next"><span class="blink">&#9654;</span><b style="color:${picker.color}">${esc(picker.name)}</b> PICKS NEXT</span>` : ''}
+      ${live() && pickers.length ? `<span class="pill next"><span class="blink">&#9654;</span>${pickers.map(p => `<b style="color:${p.color}">${esc(p.name)}</b>`).join(' OR ')} ${pickers.length > 1 ? 'PICK' : 'PICKS'} NEXT</span>` : ''}
       ${chipP ? `<span class="pill wack">${chipIcon()} WACK: <b style="color:${chipP.color}">${esc(chipP.name)}</b> &middot; +${st.chip.next} NEXT</span>` : ''}
       ${store.demo ? `<span class="pill demo">DEMO MODE</span>` : ''}
     </div>
@@ -289,8 +295,8 @@ const searchInput = $('#searchInput');
 
 function openGame(g) {
   draft = g
-    ? { id: g.id, game: { gameId: g.gameId ?? g.rawgId, name: g.name, cover: g.cover, year: g.year, platforms: g.platforms }, placings: [...(g.placings || [])] }
-    : { id: null, game: null, placings: [] };
+    ? { id: g.id, game: { gameId: g.gameId ?? g.rawgId, name: g.name, cover: g.cover, year: g.year, platforms: g.platforms }, team: !!g.team, placings: g.team ? (g.placings || []).slice(0, g.winners) : [...(g.placings || [])] }
+    : { id: null, game: null, team: false, placings: [] };
   $('#deleteBtn').hidden = !g;
   $('#deleteBtn').classList.remove('armed');
   $('#deleteBtn').textContent = 'DELETE';
@@ -337,7 +343,7 @@ searchInput.addEventListener('input', () => {
   searchTimer = setTimeout(() => runSearch(q), 250);
 });
 searchInput.addEventListener('keydown', e => {
-  if (e.key === 'Enter') { e.preventDefault(); $('#results button')?.click(); }
+  if (e.key === 'Enter') { e.preventDefault(); ($('#results button:not([data-custom])') || $('#results button'))?.click(); }
   if (e.key === 'ArrowDown') { e.preventDefault(); $('#results button')?.focus(); }
 });
 $('#results').addEventListener('keydown', e => {
@@ -416,9 +422,9 @@ function renderResults(q, loc, remote) {
       <span class="tx"><b>${esc(g.name)}</b><small>${[g.year, g.platforms].filter(Boolean).map(esc).join(' &middot; ') || '&nbsp;'}</small></span>
       ${g.local ? '<span class="tag">POOL</span>' : ''}</button></li>`;
   const qq = q.trim();
-  $('#results').innerHTML = list.map(item).join('')
+  $('#results').innerHTML = (qq ? `<li><button type="button" data-custom="1"><span class="art">+</span><span class="tx"><b>${esc(qq)}</b><small>Add as typed, without art</small></span></button></li>` : '')
+    + list.map(item).join('')
     + (remote === 'loading' ? `<li class="note">SEARCHING<span class="blink">_</span></li>` : '')
-    + (qq ? `<li><button type="button" data-custom="1"><span class="art">+</span><span class="tx"><b>${esc(qq)}</b><small>Add as typed, without art</small></span></button></li>` : '')
     + (!qq && !list.length ? `<li class="note">START TYPING A GAME NAME</li>` : '');
 }
 
@@ -437,15 +443,36 @@ $('#results').addEventListener('click', e => {
   setTimeout(() => showStep('place'), 120);
 });
 
-// placings
+// placings. In team mode draft.placings holds just the winners; everyone else is 2nd.
+const TEAM_PLACE = ['1ST TEAM', '2ND TEAM'];
+const restOf = ids => players().filter(p => !ids.includes(p.id)).map(p => p.id);
+
 function renderPlace() {
-  const g = draft.game, ps = players(), pl = draft.placings;
+  const g = draft.game, ps = players(), pl = draft.placings, team = draft.team;
   $('#picked').innerHTML = `${g.cover ? `<img class="cv" src="${esc(g.cover)}" alt="">` : ''}<div class="pt"><strong>${esc(g.name)}</strong><small>${[g.year, g.platforms].filter(Boolean).map(esc).join(' &middot; ')}</small></div><button type="button" id="changeGame">CHANGE</button>`;
   $('#changeGame').onclick = () => { showStep('search', true); searchInput.value = ''; runSearch(''); searchInput.focus(); };
-  $('#slots').innerHTML = PLACE.map((label, i) => {
+  $('#teamToggle').checked = team;
+  $('#resetBtn').disabled = !pl.length;
+  const names = ids => ids.map(id => ps.find(p => p.id === id)).filter(Boolean)
+    .map(p => `<span class="nm" style="--pc:${p.color}">${esc(p.name)}</span>`).join('');
+  const slots = $('#slots');
+  slots.classList.toggle('team', team);
+  if (team) {
+    const ok = pl.length >= 1 && pl.length <= 3;
+    slots.innerHTML = [pl, ok ? restOf(pl) : []].map((ids, i) => `<li><button type="button" data-slot="${i}" class="${ids.length ? 'filled' : i === 0 ? 'cur' : ''}" aria-label="${TEAM_PLACE[i]}">
+      ${placeIcon(i)}${names(ids) || `<span class="nm">${TEAM_PLACE[i]}</span>`}</button></li>`).join('');
+    $('#ask').innerHTML = ok ? `&#9733; READY TO SAVE &#9733;` : `TAP THE WINNING TEAM<span class="blink">_</span>`;
+    $('#pads').innerHTML = ps.map(p => {
+      const on = pl.includes(p.id);
+      return `<button class="pad${on ? ' on' : pl.length ? ' off' : ''}" type="button" data-p="${esc(p.id)}" style="--pc:${p.color}" aria-pressed="${on}" ${!on && pl.length >= 3 ? 'disabled' : ''}>${on ? '&#9733; ' : ''}${esc(p.name)}</button>`;
+    }).join('');
+    $('#saveBtn').disabled = !ok;
+    return;
+  }
+  slots.innerHTML = PLACE.map((label, i) => {
     const p = ps.find(x => x.id === pl[i]);
     return `<li><button type="button" data-slot="${i}" class="${p ? 'filled' : i === pl.length ? 'cur' : ''}" ${p ? `aria-label="${label}: ${esc(p.name)}, tap to redo"` : `aria-label="${label}"`}>
-      ${placeIcon(i)}<span class="nm" ${p ? `style="--pc:${p.color}"` : ''}>${p ? esc(p.name) : label}</span></button></li>`;
+      ${placeIcon(i)}${p ? names([p.id]) : `<span class="nm">${label}</span>`}</button></li>`;
   }).join('');
   const n = pl.length;
   $('#ask').innerHTML = n < 4 ? `WHO CAME ${PLACE[n]}?<span class="blink">_</span>` : `&#9733; READY TO SAVE &#9733;`;
@@ -456,26 +483,43 @@ function renderPlace() {
 $('#pads').addEventListener('click', e => {
   const b = e.target.closest('.pad');
   if (!b || b.disabled) return;
-  draft.placings.push(b.dataset.p);
-  // 4th is whoever is left.
-  if (draft.placings.length === 3) {
-    const left = players().find(p => !draft.placings.includes(p.id));
-    if (left) draft.placings.push(left.id);
+  const id = b.dataset.p, pl = draft.placings;
+  if (draft.team) {
+    draft.placings = pl.includes(id) ? pl.filter(x => x !== id) : [...pl, id];
+    navigator.vibrate?.(15);
+  } else {
+    pl.push(id);
+    // 4th is whoever is left.
+    if (pl.length === 3) pl.push(...restOf(pl));
+    navigator.vibrate?.(pl.length === 4 ? [15, 40, 15] : 15);
   }
-  navigator.vibrate?.(draft.placings.length === 4 ? [15, 40, 15] : 15);
   renderPlace();
 });
 $('#slots').addEventListener('click', e => {
   const b = e.target.closest('[data-slot]');
   if (!b) return;
   const i = +b.dataset.slot;
+  if (draft.team) { if (i === 0 && draft.placings.length) { draft.placings = []; renderPlace(); } return; }
   if (i < draft.placings.length) { draft.placings = draft.placings.slice(0, Math.min(i, 2)); renderPlace(); }
 });
+$('#teamToggle').addEventListener('change', e => {
+  draft.team = e.target.checked;
+  draft.placings = [];
+  navigator.vibrate?.(10);
+  renderPlace();
+});
+$('#resetBtn').onclick = () => {
+  draft.placings = [];
+  navigator.vibrate?.(10);
+  renderPlace();
+};
 
 $('#saveBtn').onclick = () => {
-  if (draft.placings.length !== 4) return;
+  const team = draft.team, k = draft.placings.length;
+  if (team ? !(k >= 1 && k <= 3) : k !== 4) return;
   const t = S.t, g = draft.game;
-  const data = { gameId: g.gameId, name: g.name, cover: g.cover || '', year: g.year || null, platforms: g.platforms || '', placings: draft.placings };
+  const placings = team ? [...draft.placings, ...restOf(draft.placings)] : draft.placings;
+  const data = { gameId: g.gameId, name: g.name, cover: g.cover || '', year: g.year || null, platforms: g.platforms || '', placings, team, winners: team ? k : null };
   const fail = () => toast('SAVE FAILED - CHECK PIN / SIGNAL', true);
   if (draft.id) {
     S.flash = draft.id;
@@ -529,13 +573,16 @@ function exportText() {
     title,
     `Players: ${players().map(p => p.name).join(', ')}`,
     `Scoring: 1st ${sc.points[0]}, 2nd ${sc.points[1]}, 3rd ${sc.points[2]}, 4th ${sc.points[3]}`
-      + (sc.wackChip ? '. Wack Chip ON: whoever is last overall holds it; it adds +1, +2, +3... to their score for each game they keep holding it, and resets to 0 when it passes on.' : '. Wack Chip OFF.'),
+      + '. Team games: everyone on the winning team scores 1st, everyone on the losing team scores 2nd.'
+      + (sc.wackChip ? ' Wack Chip ON: whoever is last overall holds it; it adds +1, +2, +3... to their score for each game they keep holding it, and resets to 0 when it passes on.' : ' Wack Chip OFF.'),
     `Status: ${live() ? 'in progress' : 'complete'} | Games played: ${S.games.length}`,
     '',
-    `# | Game | Year | 1st | 2nd | 3rd | 4th${sc.wackChip ? ' | Wack bonus' : ''}`,
+    `# | Game | Year | Type | 1st | 2nd | 3rd | 4th${sc.wackChip ? ' | Wack bonus' : ''}`,
     ...S.games.map((g, i) => {
       const b = st.perGame[g.id]?.bonus;
-      return [i + 1, g.name, g.year || '', ...(g.placings || []).map(name), ...(sc.wackChip ? [b ? `${name(b.player)} +${b.amount}` : '-'] : [])].join(' | ');
+      const pl = g.placings || [];
+      const cols = [0, 1, 2, 3].map(k => pl.filter((_, j) => placeOf(g, j) === k).map(name).join(' & ') || '-');
+      return [i + 1, g.name, g.year || '', g.team ? 'team' : 'solo', ...cols, ...(sc.wackChip ? [b ? `${name(b.player)} +${b.amount}` : '-'] : [])].join(' | ');
     }),
     '',
     'STANDINGS',

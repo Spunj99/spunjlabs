@@ -236,3 +236,18 @@ padding:12px 16px;background:var(--green);color:#002a10;font:400 10px/1.4 var(--
   *,*::before,*::after,::backdrop{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
   .crt{display:none}
 }
+
+/* team games + reset */
+.place-opts{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px}
+.place-opts .toggle{display:flex;align-items:center;gap:10px;font:400 9px var(--pixel);color:var(--fg);cursor:pointer;position:relative}
+.reset{border:2px solid var(--line2);background:var(--bg);color:var(--pink);font:400 8px var(--pixel);padding:9px 10px;cursor:pointer;box-shadow:0 3px 0 #000}
+.reset:active{transform:translateY(2px);box-shadow:0 1px 0 #000}
+.reset:disabled{opacity:.3;cursor:default;transform:none}
+.slots.team{grid-template-columns:1fr 1fr}
+.slots li>button{height:auto;min-height:64px;padding:6px 2px}
+.slots.team .nm{font-size:22px}
+.pad.on{box-shadow:inset -4px -4px 0 #0005,inset 4px 4px 0 #fff6,0 0 0 3px #fff,0 5px 0 #000}
+.pad.off{opacity:.45}
+.c.multi{gap:0}
+.c.multi .nm{font-size:18px;line-height:1}
+.c .nm.dim{color:#3d3d60}
