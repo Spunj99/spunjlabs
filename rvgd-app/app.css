@@ -344,3 +344,12 @@ padding:12px 16px;background:var(--green);color:#002a10;font:400 10px/1.4 var(--
 /* live tournament card picks up the LIVE tag's green */
 .card.live-card{border-color:#2f7a4a}
 .card.live-card:hover{border-color:var(--green)}
+
+/* form guide: last five tournament finishes as medal-coloured blocks */
+.formg{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.formg li{display:flex;align-items:center;gap:10px;padding:6px 8px;border:2px solid var(--line);background:var(--panel)}
+.formg b{flex:none;width:64px;font-weight:400;font-size:20px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.formg span{display:flex;gap:6px}
+.formg i{position:relative;width:32px;height:36px;display:grid;place-items:center;padding-bottom:9px;font:400 12px var(--pixel);font-style:normal;color:#0a0a12;box-shadow:inset -3px -3px 0 #0004}
+.formg i em{position:absolute;bottom:2px;left:0;right:0;text-align:center;font:400 6px var(--pixel);font-style:normal;opacity:.75}
+.formg .f1{background:var(--gold)}.formg .f2{background:var(--silver)}.formg .f3{background:var(--bronze)}.formg .f4{background:var(--wood);color:var(--fg)}

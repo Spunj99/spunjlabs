@@ -99,10 +99,12 @@ export function computeStats(players, games, scoring) {
 export function computeGlobal(tours) {
   const key = n => String(n || '').trim().toUpperCase();
   const gid = g => String(g.gameId ?? g.rawgId ?? 'n-' + key(g.name));
-  const P = {}, G = {}, finishes = [];
-  const get = name => (P[name] ||= { name, tournaments: 0, titles: 0, games: 0, wins: 0, lasts: 0, placeSum: 0, byGame: {} });
+  const P = {}, G = {}, finishes = [], comebacks = [], events = [];
+  const get = name => (P[name] ||= { name, tournaments: 0, titles: 0, games: 0, wins: 0, lasts: 0, placeSum: 0, byGame: {}, form: [] });
+  // Oldest first, so form guides read left to right in time order.
+  const ordered = [...tours].sort((a, b) => (a.seq ?? a.number ?? 0) - (b.seq ?? b.number ?? 0));
 
-  for (const t of tours) {
+  for (const t of ordered) {
     const names = Object.fromEntries((t.players || []).map(p => [p.id, key(p.name)]));
     Object.values(names).forEach(n => get(n).tournaments++);
     const valid = t.games.filter(g => (g.placings || []).length === 4 && g.placings.every(id => names[id]));
@@ -121,14 +123,38 @@ export function computeGlobal(tours) {
         first: { name: names[first.id], points: first.points }, last: { name: names[last.id], points: last.points },
         closeness: spread / ((Math.abs(pts[0] - pts[3]) || 1) * valid.length),
       });
+      // Form guide: each player's final position in each completed tournament.
+      st.table.forEach(r => get(names[r.id]).form.push({ number: t.number, pos: r.pos + 1 }));
+      // Greatest comeback: the champion's biggest deficit to the leader at any point,
+      // and whether they were last at halfway. Deficits are normalised like closeness.
+      const range = Math.abs(pts[0] - pts[3]) || 1, half = Math.ceil(valid.length / 2);
+      st.table.filter(r => r.pos === 0).forEach(champ => {
+        let deficit = 0, after = 0, lastAtHalf = false;
+        for (let n = 1; n <= valid.length; n++) {
+          const run = computeStandings(t.players, valid.slice(0, n), t.scoring || {}).table;
+          const mine = run.find(r => r.id === champ.id);
+          const gap = Math.abs(run[0].points - mine.points);
+          if (gap > deficit) { deficit = gap; after = n; }
+          if (n === half) lastAtHalf = mine.pos > 0 && mine.pos === run[run.length - 1].pos;
+        }
+        if (deficit) comebacks.push({ number: t.number, subtitle: t.subtitle, champion: names[champ.id], deficit, after, lastAtHalf, score: deficit / range });
+      });
+    }
+    // Best single event: most wins by one player in one tournament (live ones count too).
+    if (valid.length) {
+      const wins = {};
+      valid.forEach(g => g.placings.forEach((id, i) => { if (placeOf(g, i) === 0) wins[id] = (wins[id] || 0) + 1; }));
+      Object.entries(wins).forEach(([id, w]) => events.push({ number: t.number, subtitle: t.subtitle, name: names[id], wins: w, games: valid.length }));
     }
     for (const g of valid) {
       const place = {};
       g.placings.forEach((id, i) => { place[names[id]] = placeOf(g, i); });
       const last = Math.max(...Object.values(place));
       const id = gid(g);
-      const gg = (G[id] ||= { name: g.name, cover: '', plays: 0, tours: new Set() });
+      const gg = (G[id] ||= { name: g.name, cover: '', plays: 0, tied: 0, tours: new Set() });
       gg.plays++; gg.tours.add(t.id); if (g.cover) gg.cover = g.cover;
+      // Shared places, not counting team games (those share places by design).
+      if (!g.team && new Set(Object.values(place)).size < 4) gg.tied++;
       for (const [n, r] of Object.entries(place)) {
         const s = get(n);
         s.games++; s.placeSum += r + 1;
@@ -146,7 +172,7 @@ export function computeGlobal(tours) {
     const pool = list.some(b => b.plays >= 2) ? list.filter(b => b.plays >= 2) : list;
     const best = [...pool].sort((a, b) => a.avg - b.avg || b.plays - a.plays || b.wins - a.wins)[0] || null;
     const worst = [...pool].sort((a, b) => b.avg - a.avg || b.plays - a.plays || a.wins - b.wins)[0] || null;
-    return { ...p, avg: p.placeSum / p.games, winRate: p.wins / p.games, best, worst: worst === best ? null : worst };
+    return { ...p, avg: p.placeSum / p.games, winRate: p.wins / p.games, best, worst: worst === best ? null : worst, form: p.form.slice(-5) };
   }).sort((a, b) => b.titles - a.titles || b.winRate - a.winRate || a.avg - b.avg);
 
   const mostPlayed = Object.values(G).sort((a, b) => b.plays - a.plays || b.tours.size - a.tours.size).slice(0, 5)
@@ -155,6 +181,10 @@ export function computeGlobal(tours) {
     players, mostPlayed,
     // Closest finish: tightest whole field (every tournament that shares the record, most recent first).
     closest: finishes.filter(f => f.closeness === Math.min(...finishes.map(x => x.closeness))).sort((a, b) => b.number - a.number),
+    comeback: [...comebacks].sort((a, b) => b.score - a.score || b.lastAtHalf - a.lastAtHalf)[0] || null,
+    bestEvent: events.filter(e => e.wins === Math.max(...events.map(x => x.wins))),
+    // Most chaotic game: most plays with shared places, then the highest share of them.
+    chaos: Object.values(G).filter(g => g.tied).sort((a, b) => b.tied - a.tied || b.tied / b.plays - a.tied / a.plays)[0] || null,
     tournaments: tours.length, games: tours.reduce((a, t) => a + t.games.length, 0),
   };
 }

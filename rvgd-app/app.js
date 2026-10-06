@@ -868,6 +868,12 @@ async function openGlobal() {
       <div class="tile"><small>CLOSEST FINISH</small><b>RVGD ${roman(c.number)}${c.subtitle ? `<span class="amp">${esc(c.subtitle)}</span>` : ''}</b>
         <span>all four within ${c.spread} ${c.spread === 1 ? 'point' : 'points'} over ${c.games} games
           &middot; ${esc(c.first.name)} ${c.first.points} to ${esc(c.last.name)} ${c.last.points}</span></div>`).join('')}
+      ${g.comeback ? `<div class="tile"><small>GREATEST COMEBACK</small><b>${esc(g.comeback.champion)}<span class="amp">RVGD ${roman(g.comeback.number)}</span></b>
+        <span>${g.comeback.deficit} ${g.comeback.deficit === 1 ? 'point' : 'points'} off the lead after game ${g.comeback.after}${g.comeback.lastAtHalf ? ', last at halfway,' : ''} and still won</span></div>` : ''}
+      ${g.bestEvent.map(e => `<div class="tile"><small>BEST SINGLE EVENT</small><b>${esc(e.name)}<span class="amp">RVGD ${roman(e.number)}</span></b>
+        <span>won ${e.wins} of ${e.games} games</span></div>`).join('')}
+      ${g.chaos ? `<div class="tile"><small>MOST CHAOTIC GAME</small><b>${esc(g.chaos.name)}</b>
+        <span>shared places in ${g.chaos.tied} of ${g.chaos.plays} plays</span></div>` : ''}
     </div>` : ''}
 
     <h3 class="hh">CAREER</h3>
@@ -877,6 +883,11 @@ async function openGlobal() {
         <td>${p.wins}</td><td>${pct(p.winRate)}</td><td>${p.avg.toFixed(2)}</td><td>${p.lasts}</td></tr>`).join('')}</tbody>
     </table></div>
     <p class="note">AVG = average finishing place (1 = always 1st). LAST = last places.</p>
+
+    ${g.players.some(p => p.form.length) ? `<h3 class="hh">FORM</h3>
+    <ul class="formg">${g.players.map(p => `<li><b>${esc(p.name)}</b><span>${p.form.map(f =>
+      `<i class="f${Math.min(f.pos, 4)}" title="RVGD ${roman(f.number)}: ${PLACE[f.pos - 1] || f.pos}">${f.pos}<em>${roman(f.number)}</em></i>`).join('')}</span></li>`).join('')}</ul>
+    <p class="note">Overall finish in each of their last five tournaments, oldest to latest.</p>` : ''}
 
     <h3 class="hh">BEST &amp; WEAKEST GAMES</h3>
     <div class="pgames">${g.players.map(p => `<div class="pg"><h4>${esc(p.name)}</h4>
