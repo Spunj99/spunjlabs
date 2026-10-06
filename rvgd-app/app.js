@@ -1032,7 +1032,7 @@ async function openGlobal() {
   const pct = v => `${Math.round(v * 100)}%`;
   const art = c => `<span class="gart">${c ? `<img src="${esc(c)}" alt="" loading="lazy">` : '?'}</span>`;
   const gameLine = (b, label) => b ? `<div class="gl2">${art(b.cover)}<div><small>${label}</small><b>${esc(b.name)}</b>
-    <span>avg ${b.avg.toFixed(1)} &middot; ${b.plays} ${b.plays === 1 ? 'play' : 'plays'} &middot; ${b.wins} ${b.wins === 1 ? 'win' : 'wins'}</span></div></div>` : '';
+    <span>${b.plays} ${b.plays === 1 ? 'play' : 'plays'} &middot; ${b.wins} ${b.wins === 1 ? 'win' : 'wins'}</span></div></div>` : '';
   const names = g.players.map(p => p.name);
   const odds = fakeOdds(g.players);
 
