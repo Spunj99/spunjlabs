@@ -99,7 +99,7 @@ export function computeStats(players, games, scoring) {
 export function computeGlobal(tours) {
   const key = n => String(n || '').trim().toUpperCase();
   const gid = g => String(g.gameId ?? g.rawgId ?? 'n-' + key(g.name));
-  const P = {}, G = {}, honours = [];
+  const P = {}, G = {}, finishes = [];
   const get = name => (P[name] ||= { name, tournaments: 0, titles: 0, games: 0, wins: 0, lasts: 0, placeSum: 0, byGame: {} });
 
   for (const t of tours) {
@@ -111,7 +111,16 @@ export function computeGlobal(tours) {
       // Joint champions (level on points) each get the title.
       const champs = st.table.filter(r => r.pos === 0).map(r => names[r.id]);
       champs.forEach(c => get(c).titles++);
-      honours.push({ number: t.number, title: t.title, subtitle: t.subtitle, champion: champs.join(' & ') });
+      // How tightly the whole field finished: gap from 1st to last, per game, normalised by the
+      // per-game points spread (3 for old 1-4 place scoring, 4 for 10/8/7/6) so scoring systems compare.
+      const pts = (t.scoring || {}).points || [10, 8, 7, 6];
+      const first = st.table[0], last = st.table[st.table.length - 1];
+      const spread = Math.abs(first.points - last.points);
+      finishes.push({
+        number: t.number, subtitle: t.subtitle, games: valid.length, spread,
+        first: { name: names[first.id], points: first.points }, last: { name: names[last.id], points: last.points },
+        closeness: spread / ((Math.abs(pts[0] - pts[3]) || 1) * valid.length),
+      });
     }
     for (const g of valid) {
       const place = {};
@@ -143,7 +152,9 @@ export function computeGlobal(tours) {
   const mostPlayed = Object.values(G).sort((a, b) => b.plays - a.plays || b.tours.size - a.tours.size).slice(0, 5)
     .map(g => ({ ...g, tours: g.tours.size }));
   return {
-    players, honours: honours.sort((a, b) => b.number - a.number), mostPlayed,
+    players, mostPlayed,
+    // Closest finish: tightest whole field (every tournament that shares the record, most recent first).
+    closest: finishes.filter(f => f.closeness === Math.min(...finishes.map(x => x.closeness))).sort((a, b) => b.number - a.number),
     tournaments: tours.length, games: tours.reduce((a, t) => a + t.games.length, 0),
   };
 }

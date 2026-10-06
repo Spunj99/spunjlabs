@@ -863,9 +863,12 @@ async function openGlobal() {
     </div>
     ${exhibitions ? `<p class="note">${exhibitions} exhibition ${exhibitions === 1 ? 'tournament is' : 'tournaments are'} not counted.</p>` : ''}
 
-    ${g.honours.length ? `<h3 class="hh">ROLL OF HONOUR</h3>
-    <ul class="honours">${g.honours.map(h => `<li><span class="num">${roman(h.number)}</span>
-      <span class="ht">${esc(h.subtitle || h.title || '')}</span><b>${px(TROPHY, 'gold')} ${esc(h.champion)}</b></li>`).join('')}</ul>` : ''}
+    ${g.closest.length ? `<h3 class="hh">RECORDS</h3>
+    <div class="tiles">${g.closest.map(c => `
+      <div class="tile"><small>CLOSEST FINISH</small><b>RVGD ${roman(c.number)}${c.subtitle ? `<span class="amp">${esc(c.subtitle)}</span>` : ''}</b>
+        <span>all four within ${c.spread} ${c.spread === 1 ? 'point' : 'points'} over ${c.games} games
+          &middot; ${esc(c.first.name)} ${c.first.points} to ${esc(c.last.name)} ${c.last.points}</span></div>`).join('')}
+    </div>` : ''}
 
     <h3 class="hh">CAREER</h3>
     <div class="scroll"><table class="career">
