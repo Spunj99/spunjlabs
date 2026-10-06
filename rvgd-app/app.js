@@ -87,6 +87,7 @@ async function init() {
     const a = e.target.closest('a[data-nav]');
     if (!a || e.metaKey || e.ctrlKey) return;
     e.preventDefault();
+    document.querySelectorAll('dialog[open]').forEach(closeSheet); // e.g. a record tile in the stats sheet
     go(a.getAttribute('href'));
   });
   route();
@@ -115,6 +116,7 @@ async function showArchive() {
   $('#barTitle').innerHTML = `<span class="t1">RVGD</span><span class="t2">Retro Video Games Day</span>`;
   ['#homeBtn', '#lockBtn', '#standingsBtn', '#addBtn'].forEach(s => $(s).hidden = true);
   $('#statsBtn').hidden = false;
+  $('.bar').classList.add('no-tab'); // no trophy tab on the archive, so use the full width
   let list;
   try { list = await store.listTournaments(); }
   catch { $('#view').innerHTML = `<div class="empty"><p>COULD NOT LOAD TOURNAMENTS.</p></div>`; return; }
@@ -138,6 +140,7 @@ async function showArchive() {
 
 // ---------- tournament ----------
 function showTournament(t) {
+  $('.bar').classList.remove('no-tab');
   Object.assign(S, { t, tour: null, games: [], st: null, seen: null, editable: false });
   $('#homeBtn').href = BASE;
   $('#homeBtn').setAttribute('data-nav', '');
@@ -865,24 +868,24 @@ async function openGlobal() {
 
     ${g.closest.length ? `<h3 class="hh">RECORDS</h3>
     <div class="tiles">${g.closest.map(c => `
-      <div class="tile"><small>CLOSEST FINISH</small><b>RVGD ${roman(c.number)}${c.subtitle ? `<span class="amp">${esc(c.subtitle)}</span>` : ''}</b>
+      <a class="tile link" data-nav href="${BASE}?t=${esc(c.id)}"><small>CLOSEST FINISH</small><b>RVGD ${roman(c.number)}${c.subtitle ? `<span class="amp">${esc(c.subtitle)}</span>` : ''}</b>
         <span>all four within ${c.spread} ${c.spread === 1 ? 'point' : 'points'} over ${c.games} games
-          &middot; ${esc(c.first.name)} ${c.first.points} to ${esc(c.last.name)} ${c.last.points}</span></div>`).join('')}
-      ${g.comeback ? `<div class="tile"><small>GREATEST COMEBACK</small><b>${esc(g.comeback.champion)}<span class="amp">RVGD ${roman(g.comeback.number)}</span></b>
-        <span>${g.comeback.deficit} ${g.comeback.deficit === 1 ? 'point' : 'points'} off the lead after game ${g.comeback.after}${g.comeback.lastAtHalf ? ', last at halfway,' : ''} and still won</span></div>` : ''}
-      ${g.bestEvent.map(e => `<div class="tile"><small>BEST SINGLE EVENT</small><b>${esc(e.name)}<span class="amp">RVGD ${roman(e.number)}</span></b>
-        <span>won ${e.wins} of ${e.games} games</span></div>`).join('')}
+          &middot; ${esc(c.first.name)} ${c.first.points} to ${esc(c.last.name)} ${c.last.points}</span></a>`).join('')}
+      ${g.comeback ? `<a class="tile link" data-nav href="${BASE}?t=${esc(g.comeback.id)}"><small>GREATEST COMEBACK</small><b>${esc(g.comeback.champion)}<span class="amp">RVGD ${roman(g.comeback.number)}</span></b>
+        <span>${g.comeback.deficit} ${g.comeback.deficit === 1 ? 'point' : 'points'} off the lead after game ${g.comeback.after}${g.comeback.lastAtHalf ? ', last at halfway,' : ''} and still won</span></a>` : ''}
+      ${g.bestEvent.map(e => `<a class="tile link" data-nav href="${BASE}?t=${esc(e.id)}"><small>BEST SINGLE EVENT</small><b>${esc(e.name)}<span class="amp">RVGD ${roman(e.number)}</span></b>
+        <span>won ${e.wins} of ${e.games} games</span></a>`).join('')}
       ${g.chaos ? `<div class="tile"><small>MOST CHAOTIC GAME</small><b>${esc(g.chaos.name)}</b>
         <span>shared places in ${g.chaos.tied} of ${g.chaos.plays} plays</span></div>` : ''}
     </div>` : ''}
 
     <h3 class="hh">CAREER</h3>
     <div class="scroll"><table class="career">
-      <thead><tr><th>PLAYER</th><th title="Titles">${px(TROPHY, 'gold')}</th><th>EVENTS</th><th>GAMES</th><th>WINS</th><th>WIN %</th><th>AVG</th><th>LAST</th></tr></thead>
+      <thead><tr><th>PLAYER</th><th title="Titles">${px(TROPHY, 'gold')}</th><th>EVENTS</th><th>GAMES</th><th>WINS</th><th>WIN %</th><th>AVG</th></tr></thead>
       <tbody>${g.players.map(p => `<tr><td>${esc(p.name)}</td><td class="hl">${p.titles}</td><td>${p.tournaments}</td><td>${p.games}</td>
-        <td>${p.wins}</td><td>${pct(p.winRate)}</td><td>${p.avg.toFixed(2)}</td><td>${p.lasts}</td></tr>`).join('')}</tbody>
+        <td>${p.wins}</td><td>${pct(p.winRate)}</td><td>${p.avg.toFixed(2)}</td></tr>`).join('')}</tbody>
     </table></div>
-    <p class="note">AVG = average finishing place (1 = always 1st). LAST = last places.</p>
+    <p class="note">AVG = average finishing place in a game (1 = always 1st), whatever the scoring.</p>
 
     ${g.players.some(p => p.form.length) ? `<h3 class="hh">FORM</h3>
     <ul class="formg">${g.players.map(p => `<li><b>${esc(p.name)}</b><span>${p.form.map(f =>

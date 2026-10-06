@@ -119,7 +119,7 @@ export function computeGlobal(tours) {
       const first = st.table[0], last = st.table[st.table.length - 1];
       const spread = Math.abs(first.points - last.points);
       finishes.push({
-        number: t.number, subtitle: t.subtitle, games: valid.length, spread,
+        id: t.id, number: t.number, subtitle: t.subtitle, games: valid.length, spread,
         first: { name: names[first.id], points: first.points }, last: { name: names[last.id], points: last.points },
         closeness: spread / ((Math.abs(pts[0] - pts[3]) || 1) * valid.length),
       });
@@ -137,14 +137,14 @@ export function computeGlobal(tours) {
           if (gap > deficit) { deficit = gap; after = n; }
           if (n === half) lastAtHalf = mine.pos > 0 && mine.pos === run[run.length - 1].pos;
         }
-        if (deficit) comebacks.push({ number: t.number, subtitle: t.subtitle, champion: names[champ.id], deficit, after, lastAtHalf, score: deficit / range });
+        if (deficit) comebacks.push({ id: t.id, number: t.number, subtitle: t.subtitle, champion: names[champ.id], deficit, after, lastAtHalf, score: deficit / range });
       });
     }
     // Best single event: most wins by one player in one tournament (live ones count too).
     if (valid.length) {
       const wins = {};
       valid.forEach(g => g.placings.forEach((id, i) => { if (placeOf(g, i) === 0) wins[id] = (wins[id] || 0) + 1; }));
-      Object.entries(wins).forEach(([id, w]) => events.push({ number: t.number, subtitle: t.subtitle, name: names[id], wins: w, games: valid.length }));
+      Object.entries(wins).forEach(([id, w]) => events.push({ id: t.id, number: t.number, subtitle: t.subtitle, name: names[id], wins: w, games: valid.length }));
     }
     for (const g of valid) {
       const place = {};

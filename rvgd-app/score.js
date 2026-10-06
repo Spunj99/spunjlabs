@@ -9,6 +9,25 @@ export const DEFAULT_SCORING = { points: [10, 8, 7, 6], wackChip: false, lowWins
 // ranks (imported results) allows ties; team games are winners then losers.
 export const placeOf = (g, i) => g.ranks ? g.ranks[i] : g.team ? (i < g.winners ? 0 : 1) : i;
 
+// Who takes the Wack Chip when several players are level last overall:
+// 1. the current holder keeps it if they're among them;
+// 2. otherwise whoever finished lower in the game just played;
+// 3. still level: whoever was lower at the most recent earlier point their totals differed
+//    (snaps = totals after each previous game, oldest first);
+// 4. level all the way back: the first listed.
+export function pickChipHolder(tied, holder, placeIn, snaps) {
+  if (tied.includes(holder)) return holder;
+  return [...tied].sort((a, b) => {
+    const byGame = placeIn(b) - placeIn(a);
+    if (byGame) return byGame;
+    for (let i = snaps.length - 1; i >= 0; i--) {
+      const diff = snaps[i][a] - snaps[i][b];
+      if (diff) return diff; // lower total first
+    }
+    return 0;
+  })[0];
+}
+
 export function computeStandings(players, games, scoring = DEFAULT_SCORING) {
   const pts = scoring.points || DEFAULT_SCORING.points;
   const low = !!scoring.lowWins;
@@ -18,6 +37,7 @@ export function computeStandings(players, games, scoring = DEFAULT_SCORING) {
 
   let holder = null, held = 0;
   const perGame = {};
+  const snaps = []; // running totals after each game, for chip tie-breaks
 
   for (const g of games) {
     const pl = g.placings || [];
@@ -44,10 +64,11 @@ export function computeStandings(players, games, scoring = DEFAULT_SCORING) {
     if (wack) {
       const min = Math.min(...ids.map(id => tot[id].points));
       const tied = ids.filter(id => tot[id].points === min);
-      const last = tied.includes(holder) ? holder
-        : tied.sort((a, b) => pl.indexOf(b) - pl.indexOf(a))[0];
+      const placeIn = id => placeOf(g, pl.indexOf(id));
+      const last = pickChipHolder(tied, holder, placeIn, snaps);
       if (last !== holder) { holder = last; held = 0; }
     }
+    snaps.push(Object.fromEntries(ids.map(id => [id, tot[id].points])));
     perGame[g.id] = { bonus, holder, value: held };
   }
 
@@ -120,6 +141,13 @@ export function selfTest() {
   check('team tie for last gives chip to a loser', ['z', 'w'].includes(r.chip.holder));
   r = computeStandings(Q, [{ id: 1, team: true, winners: 1, placings: ['x', 'y', 'z', 'w'] }], on([10, 8, 7, 6]));
   check('team 1v3', pts(r, 'x') === 10 && pts(r, 'w') === 8);
+
+  // Chip tie-breaks for players level last overall.
+  const placeAll = id => ({ y: 3, z: 3 })[id] ?? 0; // y and z joint last in the latest game
+  check('chip tie: holder keeps it', pickChipHolder(['y', 'z'], 'z', placeAll, []) === 'z');
+  check('chip tie: lower in latest game', pickChipHolder(['y', 'z'], 'w', id => ({ y: 3, z: 2 })[id], []) === 'y');
+  check('chip tie: lower when last different', pickChipHolder(['y', 'z'], 'w', placeAll, [{ y: 8, z: 7 }, { y: 14, z: 14 }]) === 'z');
+  check('chip tie: looks back past level games', pickChipHolder(['y', 'z'], null, placeAll, [{ y: 6, z: 8 }, { y: 12, z: 12 }, { y: 20, z: 20 }]) === 'y');
 
   // Tied places (imported results) and lowest-total-wins scoring.
   const low = { points: [1, 2, 3, 4], wackChip: true, lowWins: true };
