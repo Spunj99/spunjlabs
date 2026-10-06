@@ -29,6 +29,7 @@
   <div class="bar-title" id="barTitle">
     <span class="t1">RVGD</span>
   </div>
+  <button class="bar-btn" id="statsBtn" type="button" aria-label="Stats" hidden></button>
   <button class="bar-btn" id="lockBtn" type="button" aria-label="Unlock scoring" hidden></button>
   <button class="trophy-tab" id="standingsBtn" type="button" aria-label="Standings" hidden></button>
 </header>
@@ -81,6 +82,17 @@
       <button class="btn" id="adminBtn" type="button">SETTINGS</button>
       <button class="btn primary" id="copyBtn" type="button">COPY AS TEXT</button>
     </div>
+  </div>
+</dialog>
+
+<!-- Stats -->
+<dialog class="sheet" id="statsSheet" aria-labelledby="statsTitle">
+  <div class="sheet-in">
+    <div class="sheet-head">
+      <h2 id="statsTitle">STATS</h2>
+      <button class="x" type="button" data-close aria-label="Close">&times;</button>
+    </div>
+    <div id="statsBody"></div>
   </div>
 </dialog>
 

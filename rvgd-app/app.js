@@ -1,5 +1,6 @@
 import { createStore } from './store.js';
 import { computeStandings, placeOf, DEFAULT_SCORING, selfTest } from './score.js';
+import { computeStats } from './stats.js';
 
 // ---- config: paste from Firebase console > Project settings > Your apps ----
 // These are public identifiers, not secrets. Security comes from firestore.rules.
@@ -37,6 +38,8 @@ const TROPHY = ['XXXXXXXXXXXX', 'X.XwXXXXXX.X', 'X.XwXXXXXX.X', '.X.XXXXXX.X.', 
 const SKULL = ['..XXXXXX..', '.XXXXXXXX.', 'XXXXXXXXXX', 'XX..XX..XX', 'XX..XX..XX', 'XXXXXXXXXX', '.XXX..XXX.', '..XXXXXX..', '..X.XX.X..'];
 const LOCK = ['..XXXXXX..', '.XX....XX.', '.X......X.', '.X......X.', 'XXXXXXXXXX', 'XXXXXXXXXX', 'XXXX..XXXX', 'XXXX..XXXX', 'XXXXXXXXXX', 'XXXXXXXXXX'];
 const UNLOCK = ['..XXXXXX..', '.XX....XX.', '.X......X.', '.X........', 'XXXXXXXXXX', 'XXXXXXXXXX', 'XXXX..XXXX', 'XXXX..XXXX', 'XXXXXXXXXX', 'XXXXXXXXXX'];
+// Bar chart icon for the stats button.
+const CHART = ['.........X', '.........X', '......X..X', '......X..X', '...X..X..X', '...X..X..X', 'X..X..X..X', 'X..X..X..X', 'XXXXXXXXXX'];
 const ARROW = ['....X.....', '...XX.....', '..XXX.....', '.XXXXXXXXX', 'XXXXXXXXXX', '.XXXXXXXXX', '..XXX.....', '...XX.....', '....X.....'];
 // Up = oldest game first, down = newest first.
 const SORT_UP = ['...X...', '..XXX..', '.XXXXX.', 'XXXXXXX'];
@@ -63,6 +66,7 @@ try { newestFirst = localStorage.getItem('rvgd-newest-first') === '1'; } catch {
 // ---------- boot ----------
 $('#homeBtn').innerHTML = px(ARROW);
 $('#standingsBtn').innerHTML = px(TROPHY);
+$('#statsBtn').innerHTML = px(CHART);
 init();
 
 async function init() {
@@ -104,7 +108,7 @@ async function showArchive() {
   Object.assign(S, { t: null, tour: null, games: [], st: null });
   document.title = 'RVGD | SpunjLabs';
   $('#barTitle').innerHTML = `<span class="t1">RVGD</span><span class="t2">Retro Video Games Day</span>`;
-  ['#homeBtn', '#lockBtn', '#standingsBtn', '#addBtn'].forEach(s => $(s).hidden = true);
+  ['#homeBtn', '#statsBtn', '#lockBtn', '#standingsBtn', '#addBtn'].forEach(s => $(s).hidden = true);
   let list;
   try { list = await store.listTournaments(); }
   catch { $('#view').innerHTML = `<div class="empty"><p>COULD NOT LOAD TOURNAMENTS.</p></div>`; return; }
@@ -138,7 +142,7 @@ function showTournament(t) {
     S.tour = tour;
     if (!tour) {
       $('#barTitle').innerHTML = `<span class="t1">RVGD ${roman(+t || 0)}</span>`;
-      ['#lockBtn', '#standingsBtn', '#addBtn'].forEach(s => $(s).hidden = true);
+      ['#statsBtn', '#lockBtn', '#standingsBtn', '#addBtn'].forEach(s => $(s).hidden = true);
       $('#view').innerHTML = `<div class="empty"><p class="big">?</p><p>TOURNAMENT NOT FOUND</p></div>`;
       return;
     }
@@ -163,6 +167,7 @@ function renderChrome() {
   document.title = `${title} | SpunjLabs`;
   $('#barTitle').innerHTML = `<span class="t1${title.length > 12 ? ' long' : ''}">${esc(title)}</span>${tr.subtitle ? `<span class="t2">${esc(tr.subtitle)}</span>` : ''}`;
   $('#standingsBtn').hidden = false;
+  $('#statsBtn').hidden = false;
   const lock = $('#lockBtn');
   lock.hidden = !live();
   lock.innerHTML = px(S.editable ? UNLOCK : LOCK);
@@ -204,7 +209,8 @@ function renderTournament() {
   const rowsHtml = (newestFirst ? rows.reverse() : rows).join('');
 
   $('#view').innerHTML = `
-    ${champ ? `<div class="champ"><small>&#9733; CHAMPION &#9733;</small><strong>${esc(champ.name)}</strong></div>` : ''}
+    ${champ ? `<div class="champ"><small>&#9733; CHAMPION &#9733;</small><strong>${esc(champ.name)}</strong>
+      <p class="runners">${st.table.slice(1).map((r, i) => `${PLACE[i + 1]} <b style="color:${pById(r.id).color}">${esc(pById(r.id).name)}</b> ${r.points}`).join(' &middot; ')}</p></div>` : ''}
     <div class="banner">
       ${live() && pickers.length ? `<span class="pill next"><span class="blink">&#9654;</span>${pickers.map(p => `<b style="color:${p.color}">${esc(p.name)}</b>`).join(' OR ')} ${pickers.length > 1 ? 'PICK' : 'PICKS'} NEXT</span>` : ''}
       ${chipP ? `<span class="pill wack">${chipIcon()} WACK: <b style="color:${chipP.color}">${esc(chipP.name)}</b> &middot; +${st.chip.next} NEXT</span>` : ''}
@@ -220,6 +226,7 @@ function renderTournament() {
   S.seen = new Set(S.games.map(g => g.id));
   S.flash = null;
   if ($('#standingsSheet').open) renderStandings();
+  if ($('#statsSheet').open) renderStats();
 }
 
 function pulseTab() {
@@ -248,6 +255,7 @@ $('#lockBtn').onclick = async () => {
   else if (await requireEditor()) toast('UNLOCKED! READY PLAYER ONE');
 };
 $('#standingsBtn').onclick = () => { renderStandings(); openSheet($('#standingsSheet')); };
+$('#statsBtn').onclick = () => { renderStats(); openSheet($('#statsSheet')); };
 
 // ---------- sheets ----------
 function openSheet(d) {
@@ -652,6 +660,143 @@ $('#copyBtn').onclick = async () => {
   }
   toast('COPIED! PASTE IT ANYWHERE');
 };
+
+// ---------- stats ----------
+const swatch = p => `<span class="pn"><i style="background:${p.color}"></i>${esc(p.name)}</span>`;
+const who = ids => ids.map(id => swatch(pById(id))).join('<span class="amp">&amp;</span>');
+
+function renderStats() {
+  const ps = players(), sc = scoring();
+  const s = computeStats(ps, S.games, sc);
+  $('#statsTitle').innerHTML = `${px(CHART)} STATS`;
+  if (s.games < 2) {
+    $('#statsBody').innerHTML = `<div class="empty"><p>PLAY A COUPLE OF GAMES<br>TO UNLOCK STATS</p></div>`;
+    return;
+  }
+  const { top, per, games } = s;
+  const plural = (n, one, many = one + 's') => `${n} ${n === 1 ? one : many}`;
+  const range = r => r.from === r.to ? `game #${r.from}` : `games #${r.from}&ndash;${r.to}`;
+  const tiles = [];
+  const add = (label, html, detail) => tiles.push(`<div class="tile"><small>${label}</small><b>${html}</b><span>${detail}</span></div>`);
+
+  let t = top(x => x.wins);
+  add('MOST WINS', who(t.ids), plural(t.value, 'win'));
+  t = top(x => x.lasts);
+  add('MOST LAST PLACES', who(t.ids), plural(t.value, 'wooden spoon'));
+  t = top(x => x.winStreak.n);
+  if (t.value >= 2) add('LONGEST WIN STREAK', who(t.ids), `${plural(t.value, 'win')} in a row${t.ids.length === 1 ? ` &middot; ${range(per[t.ids[0]].winStreak)}` : ''}`);
+  t = top(x => x.slump.n);
+  add('LONGEST SLUMP', who(t.ids), `${plural(t.value, 'game')} without a win${t.ids.length === 1 ? ` &middot; ${range(per[t.ids[0]].slump)}` : ''}`);
+  t = top(x => x.placeSum / x.played, true);
+  add('BEST AVERAGE FINISH', who(t.ids), `averages ${t.value.toFixed(2)} (1 = always 1st)`);
+  t = top(x => x.ledFor);
+  add('TIME AT THE TOP', who(t.ids), `leading after ${t.value} of ${games} games`);
+  tiles.push(`<div class="tile"><small>LEAD CHANGES</small><b class="big">${s.leadChanges}</b><span>${s.leadChanges ? 'times the lead swapped hands' : 'led from start to finish'}</span></div>`);
+  t = top(x => x.picks >= 2 ? x.pickWins / x.picks : -1);
+  if (t.value >= 0) add('LOSER&rsquo;S REVENGE', who(t.ids), t.ids.length === 1
+    ? `won ${per[t.ids[0]].pickWins} of the ${plural(per[t.ids[0]].picks, 'game')} they picked`
+    : `won ${Math.round(t.value * 100)}% of the games they picked`);
+  if (s.rivalry) {
+    const r = s.rivalry;
+    add('BIGGEST RIVALRY', `${who([r.winner])}<span class="amp">vs</span>${who([r.loser])}`, `finished above them ${r.wins}&ndash;${r.losses}`);
+  }
+  t = top(x => x.teamPlayed ? x.teamWins : -1);
+  if (t.value > 0) add('TEAM PLAYER', who(t.ids), `${plural(t.value, 'team win')} from ${plural(per[t.ids[0]].teamPlayed, 'team game')}`);
+  if (s.chip?.hold.player) add('LONGEST WACK HOLD', who([s.chip.hold.player]), `held the chip for ${plural(s.chip.hold.n, 'game')}`);
+  if (s.chip?.payout) add('BIGGEST WACK PAYOUT', who([s.chip.payout.player]), `+${s.chip.payout.amount} on ${esc(s.chip.payout.game)}`);
+
+  $('#statsBody').innerHTML = `
+    <section class="race">
+      <h3>THE RACE <small>${sc.lowWins ? 'vs average &middot; up = better (lowest total wins)' : 'points above / below average'}</small></h3>
+      <div class="chart" id="raceChart">${raceSvg(s, ps, sc)}<div class="tip" id="raceTip" hidden></div></div>
+      <ul class="legend">${ps.map(p => `<li>${swatch(p)}</li>`).join('')}</ul>
+      <details class="tview"><summary>VIEW AS TABLE</summary>${raceTable(s, ps)}</details>
+    </section>
+    <div class="tiles">${tiles.join('')}</div>`;
+  bindRace(s, ps, sc);
+}
+
+// Running totals as the gap to the group average (flipped when lowest wins, so up is always better).
+const RACE = { W: 420, H: 230, L: 34, R: 66, T: 12, B: 26 };
+function raceGeom(s, ps, sc) {
+  const sign = sc.lowWins ? -1 : 1;
+  const series = [Object.fromEntries(ps.map(p => [p.id, 0])), ...s.history.map(h => {
+    const mean = ps.reduce((a, p) => a + h.pts[p.id], 0) / ps.length;
+    return Object.fromEntries(ps.map(p => [p.id, sign * (h.pts[p.id] - mean)]));
+  })];
+  const vals = series.flatMap(o => Object.values(o));
+  let lo = Math.min(0, ...vals), hi = Math.max(0, ...vals);
+  const step = [1, 2, 5, 10, 20, 25, 50, 100].find(st => (hi - lo) / st <= 5) || 100;
+  lo = Math.floor(lo / step) * step;
+  hi = Math.max(Math.ceil(hi / step) * step, lo + step);
+  const { W, H, L, R, T, B } = RACE;
+  const x = i => L + (i / (series.length - 1)) * (W - L - R);
+  const y = v => T + (hi - v) / (hi - lo) * (H - T - B);
+  return { series, lo, hi, step, x, y };
+}
+
+function raceSvg(s, ps, sc) {
+  const { W, H, L, R, T, B } = RACE;
+  const { series, lo, hi, step, x, y } = raceGeom(s, ps, sc);
+  const n = series.length - 1;
+  const fmt = v => (v > 0 ? '+' : '') + Math.round(v * 10) / 10;
+  let grid = '';
+  for (let v = lo; v <= hi + 1e-9; v += step) {
+    grid += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" class="${v === 0 ? 'zero' : 'gl'}"/><text x="${L - 6}" y="${y(v) + 5}" text-anchor="end" class="ax">${fmt(v)}</text>`;
+  }
+  const every = Math.max(1, Math.ceil(n / 6));
+  let xt = '';
+  for (let i = 0; i <= n; i += every) xt += `<text x="${x(i)}" y="${H - 8}" text-anchor="middle" class="ax">${i === 0 ? 'START' : '#' + i}</text>`;
+  const lines = ps.map(p => `<path d="${series.map((o, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(o[p.id]).toFixed(1)}`).join('')}" stroke="${p.color}" class="ln"/>`).join('');
+  // Direct labels at the line ends, nudged apart so they never overlap.
+  const ends = ps.map(p => ({ p, y: y(series[n][p.id]) })).sort((a, b) => a.y - b.y);
+  ends.forEach((e, i) => { e.ly = i ? Math.max(e.y, ends[i - 1].ly + 15) : e.y; });
+  const labels = ends.map(e => `<circle cx="${x(n)}" cy="${e.y}" r="4.5" fill="${e.p.color}" class="dot"/><text x="${x(n) + 10}" y="${e.ly + 5}" class="lbl">${esc(e.p.name)}</text>`).join('');
+  const sum = ps.map(p => `${p.name} ${fmt(series[n][p.id])}`).join(', ');
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Points versus the average after each game. Final: ${esc(sum)}">
+    ${grid}${xt}${lines}${labels}
+    <line id="raceCross" class="cross" y1="${T}" y2="${H - B}" x1="-10" x2="-10"/>
+    <g id="raceDots"></g>
+    <rect x="${L}" y="0" width="${W - L - R + 1}" height="${H}" fill="transparent" id="raceHit"/>
+  </svg>`;
+}
+
+function raceTable(s, ps) {
+  return `<table><thead><tr><th>#</th><th>GAME</th>${ps.map(p => `<th>${esc(p.name)}</th>`).join('')}</tr></thead><tbody>${
+    s.history.map((h, i) => `<tr><td>${i + 1}</td><td>${esc(S.games[i]?.name || '')}</td>${ps.map(p => `<td>${h.pts[p.id]}</td>`).join('')}</tr>`).join('')
+  }</tbody></table>`;
+}
+
+// Crosshair + tooltip: tap or hover on the plot to read the totals after that game.
+function bindRace(s, ps, sc) {
+  const svg = $('#raceChart svg'), tip = $('#raceTip'), cross = $('#raceCross');
+  const { series, x, y } = raceGeom(s, ps, sc);
+  const n = series.length - 1;
+  const show = e => {
+    const r = svg.getBoundingClientRect();
+    const vx = (e.clientX - r.left) / r.width * RACE.W;
+    const i = Math.max(1, Math.min(n, Math.round((vx - RACE.L) / (RACE.W - RACE.L - RACE.R) * n)));
+    cross.setAttribute('x1', x(i));
+    cross.setAttribute('x2', x(i));
+    $('#raceDots').innerHTML = ps.map(p => `<circle cx="${x(i)}" cy="${y(series[i][p.id])}" r="5" fill="${p.color}" class="dot"/>`).join('');
+    const h = s.history[i - 1];
+    const order = [...ps].sort((a, b) => sc.lowWins ? h.pts[a.id] - h.pts[b.id] : h.pts[b.id] - h.pts[a.id]);
+    tip.innerHTML = `<b>#${i} ${esc(S.games[i - 1]?.name || '')}</b>${order.map(p => `<div>${swatch(p)}<span>${h.pts[p.id]}</span></div>`).join('')}`;
+    tip.hidden = false;
+    const left = x(i) / RACE.W * r.width;
+    tip.style.left = `${Math.min(Math.max(left - tip.offsetWidth / 2, 0), r.width - tip.offsetWidth)}px`;
+  };
+  const hit = $('#raceHit');
+  hit.addEventListener('pointermove', show);
+  hit.addEventListener('pointerdown', show);
+  hit.addEventListener('pointerleave', e => {
+    if (e.pointerType !== 'mouse') return;
+    tip.hidden = true;
+    cross.setAttribute('x1', -10);
+    cross.setAttribute('x2', -10);
+    $('#raceDots').innerHTML = '';
+  });
+}
 
 // ---------- admin ----------
 $('#adminBtn').onclick = async () => {
