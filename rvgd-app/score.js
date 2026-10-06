@@ -54,6 +54,9 @@ export function computeStandings(players, games, scoring = DEFAULT_SCORING) {
   const table = ids.map(id => tot[id]).sort((a, b) =>
     (low ? a.points - b.points : b.points - a.points) ||
     b.places[0] - a.places[0] || b.places[1] - a.places[1] || b.places[2] - a.places[2]);
+  // Level on points = same position; the next player takes the next one (2nd, 2nd, 3rd).
+  // Wins only decide the display order within a shared position.
+  table.forEach((t, i) => { t.pos = i && t.points === table[i - 1].points ? table[i - 1].pos : (i && table[i - 1].pos + 1); });
 
   return {
     table,
@@ -125,6 +128,13 @@ export function selfTest() {
   check('lowest total ranks first', r.table[0].id === 'x');
   check('tie on total broken by wins', r.table[1].id === 'w');
   check('no chip when lowest wins', r.chip === null);
+
+  // Level totals share a standings position, and the next player follows on.
+  r = computeStandings(Q, [{ id: 1, placings: ['x', 'y', 'z', 'w'], ranks: [0, 1, 2, 3] }, { id: 2, placings: ['y', 'x', 'w', 'z'], ranks: [0, 1, 2, 3] }],
+    { points: [1, 2, 3, 4], lowWins: true });
+  check('tied totals share a position', r.table.map(t => `${t.id}${t.pos}`).join() === 'x0,y0,z1,w1');
+  r = computeStandings(Q, [g(1, ['x', 'y', 'z', 'w'])], { points: [10, 8, 8, 6] });
+  check('next player follows on after a tie', r.table.map(t => t.pos).join() === '0,1,1,2');
 
   // Editing an earlier game re-flows the chip history.
   const e = [g(1, ['x', 'y', 'z', 'w']), g(2, ['x', 'y', 'z', 'w'])];

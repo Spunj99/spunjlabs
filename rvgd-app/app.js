@@ -122,7 +122,7 @@ async function showArchive() {
     <div class="hero"><h1>RETRO<br>VIDEO GAMES<br>DAY</h1><p>&#9654; SELECT TOURNAMENT<span class="blink">_</span></p></div>
     ${store.demo ? `<div class="banner"><span class="pill demo">DEMO MODE &middot; SAVED ON THIS DEVICE ONLY</span></div>` : ''}
     <ul class="cards">${list.map(t => `
-      <li><a class="card" data-nav href="${BASE}?t=${esc(t.id)}">
+      <li><a class="card${t.status === 'complete' ? '' : ' live-card'}" data-nav href="${BASE}?t=${esc(t.id)}">
         <span class="num">${t.number ? roman(t.number) : 'EX'}</span>
         <span class="meta"><h2>${esc(t.title || 'RVGD ' + roman(t.number))}${t.subtitle ? ': ' + esc(t.subtitle) : ''}</h2>
         ${t.date ? `<small class="date">${fmtDate(t.date)}</small>` : ''}
@@ -192,7 +192,10 @@ function renderTournament() {
   const lastRank = last ? Math.max(...(last.placings || []).map((_, i) => placeOf(last, i))) : -1;
   const pickers = (last?.placings || []).filter((_, i) => placeOf(last, i) === lastRank).map(pById).filter(Boolean);
   const chipP = st.chip && pById(st.chip.holder);
-  const champ = !live() && st.table[0] && pById(st.table[0].id);
+  // Players level on points share a position; everyone in position 0 is a (joint) champion.
+  const groups = [];
+  if (!live()) st.table.forEach(r => { (groups[r.pos] ||= []).push(r); });
+  const champ = groups[0] && { name: groups[0].map(r => pById(r.id)?.name).join(' & '), joint: groups[0].length > 1 };
 
   const pc = p => p ? `style="--pc:${p.color}"` : '';
   const isNew = id => S.seen && !S.seen.has(id);
@@ -216,8 +219,8 @@ function renderTournament() {
   const rowsHtml = (newestFirst ? rows.reverse() : rows).join('');
 
   $('#view').innerHTML = `
-    ${champ ? `<div class="champ"><small>&#9733; CHAMPION &#9733;</small><strong>${esc(champ.name)}</strong>
-      <p class="runners">${st.table.slice(1).map((r, i) => `${PLACE[i + 1]} <b style="color:${pById(r.id).color}">${esc(pById(r.id).name)}</b> ${r.points}`).join(' &middot; ')}</p></div>` : ''}
+    ${champ ? `<div class="champ"><small>&#9733; ${champ.joint ? 'JOINT CHAMPIONS' : 'CHAMPION'} &#9733;</small><strong>${esc(champ.name)}</strong>
+      <p class="runners">${groups.slice(1).map((g, i) => g && `${PLACE[i + 1]} ${g.map(r => `<b style="color:${pById(r.id).color}">${esc(pById(r.id).name)}</b>`).join(' &amp; ')} ${g[0].points}`).filter(Boolean).join(' &middot; ')}</p></div>` : ''}
     <div class="banner">
       ${live() && pickers.length ? `<span class="pill next"><span class="blink">&#9654;</span>${pickers.map(p => `<b style="color:${p.color}">${esc(p.name)}</b>`).join(' OR ')} ${pickers.length > 1 ? 'PICK' : 'PICKS'} NEXT</span>` : ''}
       ${chipP ? `<span class="pill wack">${chipIcon()} WACK: <b style="color:${chipP.color}">${esc(chipP.name)}</b> &middot; +${st.chip.next} NEXT</span>` : ''}
@@ -336,6 +339,8 @@ function openGame(g) {
   else {
     showStep('search');
     searchInput.value = '';
+    shownKeys = new Set();
+    lastRemote = [];
     searchInput.focus();
     runSearch('');
   }
@@ -363,7 +368,13 @@ async function localGames() {
   if (!pool) pool = await store.loadPool();
   const map = new Map();
   [...S.games].reverse().forEach(g => map.set(String(g.gameId ?? g.rawgId ?? norm(g.name)), { gameId: g.gameId ?? g.rawgId, name: g.name, cover: g.cover, year: g.year, platforms: g.platforms, local: true }));
-  pool.forEach(p => { if (!map.has(String(p.id))) map.set(String(p.id), { gameId: p.id, name: p.name, cover: p.cover, year: p.year, platforms: p.platforms, local: true }); });
+  // Skip pool entries whose name is already listed (e.g. an old alias renamed to the full title).
+  const names = new Set([...map.values()].map(g => norm(g.name)));
+  pool.forEach(p => {
+    if (map.has(String(p.id)) || names.has(norm(p.name))) return;
+    names.add(norm(p.name));
+    map.set(String(p.id), { gameId: p.id, name: p.name, cover: p.cover, year: p.year, platforms: p.platforms, local: true });
+  });
   return [...map.values()];
 }
 
@@ -371,7 +382,7 @@ searchInput.addEventListener('input', () => {
   clearTimeout(searchTimer);
   const q = searchInput.value;
   runLocal(q);
-  searchTimer = setTimeout(() => runSearch(q), 250);
+  searchTimer = setTimeout(() => runSearch(q), 400);
 });
 searchInput.addEventListener('keydown', e => {
   if (e.key === 'Enter') { e.preventDefault(); ($('#results button:not([data-custom])') || $('#results button'))?.click(); }
@@ -388,31 +399,41 @@ $('#results').addEventListener('keydown', e => {
 async function runLocal(q) {
   const n = norm(q);
   const loc = (await localGames()).filter(g => !n || norm(g.name).includes(n)).slice(0, n ? 8 : 12);
-  renderResults(q, loc, null);
+  // While the next online search is pending, keep showing the previous online results
+  // that still match, so the list doesn't empty and refill on every keystroke.
+  renderResults(q, loc, n ? withoutLocal(loc, lastRemote.filter(g => norm(g.name).includes(n))) : []);
   return loc;
 }
+
+let lastRemote = [];
+const withoutLocal = (loc, remote) => {
+  const have = new Set(loc.map(g => String(g.gameId ?? norm(g.name))));
+  const names = new Set(loc.map(g => norm(g.name) + g.year));
+  return remote.filter(g => !have.has(String(g.gameId)) && !names.has(norm(g.name) + g.year));
+};
 
 async function runSearch(q) {
   const loc = await runLocal(q);
   const n = norm(q);
-  if (n.length < 2) { renderResults(q, loc, []); return; }
+  if (n.length < 2) { lastRemote = []; renderResults(q, loc, []); return; }
   searchCtl?.abort();
   searchCtl = new AbortController();
   let remote = wikiCache.get(n);
   if (!remote) {
-    renderResults(q, loc, 'loading');
+    $('.search').classList.add('busy');
     try {
       remote = await wikiSearch(q, searchCtl.signal);
       wikiCache.set(n, remote);
     } catch (e) {
       if (e.name === 'AbortError') return;
       remote = [];
+    } finally {
+      if (searchInput.value === q) $('.search').classList.remove('busy');
     }
   }
   if (searchInput.value !== q) return;
-  const have = new Set(loc.map(g => String(g.gameId ?? norm(g.name))));
-  const names = new Set(loc.map(g => norm(g.name) + g.year));
-  renderResults(q, loc, remote.filter(g => !have.has(String(g.gameId)) && !names.has(norm(g.name) + g.year)));
+  lastRemote = remote;
+  renderResults(q, loc, withoutLocal(loc, remote));
 }
 
 // Wikipedia: title autocomplete (good ordering) plus a full-text search limited to
@@ -445,18 +466,21 @@ async function wikiSearch(q, signal) {
     });
 }
 
+// Only rows that weren't already on screen animate in, so typing doesn't replay the whole list.
+let shownKeys = new Set();
 function renderResults(q, loc, remote) {
-  const list = [...loc, ...(Array.isArray(remote) ? remote : [])];
+  const list = [...loc, ...remote];
   lastResults = list;
-  const item = (g, i) => `<li><button type="button" role="option" data-i="${i}">
+  const key = g => String(g.gameId ?? norm(g.name));
+  const item = (g, i) => `<li><button type="button" role="option" data-i="${i}"${shownKeys.has(key(g)) ? '' : ' class="in"'}>
       <span class="art">${g.cover ? `<img src="${esc(g.cover)}" alt="" loading="lazy" decoding="async">` : '?'}</span>
       <span class="tx"><b>${esc(g.name)}</b><small>${[g.year, g.platforms].filter(Boolean).map(esc).join(' &middot; ') || '&nbsp;'}</small></span>
       ${g.local ? '<span class="tag">POOL</span>' : ''}</button></li>`;
   const qq = q.trim();
   $('#results').innerHTML = (qq ? `<li><button type="button" data-custom="1"><span class="art">+</span><span class="tx"><b>${esc(qq)}</b><small>Add as typed, without art</small></span></button></li>` : '')
     + list.map(item).join('')
-    + (remote === 'loading' ? `<li class="note">SEARCHING<span class="blink">_</span></li>` : '')
     + (!qq && !list.length ? `<li class="note">START TYPING A GAME NAME</li>` : '');
+  shownKeys = new Set(list.map(key));
 }
 
 $('#results').addEventListener('click', e => {
@@ -609,14 +633,14 @@ $('#deleteBtn').onclick = () => {
 function renderStandings() {
   const st = S.st, sc = scoring();
   if (!st) return;
-  const rankIcon = i => placeIcon(Math.min(i, 3));
+  const rankIcon = pos => placeIcon(Math.min(pos, 3));
   const chipP = st.chip && pById(st.chip.holder);
   $('#standingsTitle').innerHTML = `${px(TROPHY, 'gold')} STANDINGS`;
   $('#standingsBody').innerHTML = `
     <ol class="stand">${st.table.map((r, i) => {
       const p = pById(r.id);
       return `<li style="animation-delay:${i * 60}ms">
-        <span class="rk">${rankIcon(i)}</span>
+        <span class="rk">${rankIcon(r.pos)}</span>
         <span class="who"><b style="--pc:${p.color}">${esc(p.name)}${st.chip?.holder === r.id ? chipIcon() : ''}</b>
           <small>${r.places.map((n, k) => `${PLACE[k]}&times;${n}`).join(' ')}${sc.wackChip ? ` &middot; WACK +${r.bonus}` : ''}</small></span>
         <span class="tot">${r.points}<small>PTS</small></span>
@@ -649,7 +673,7 @@ function exportText() {
     '',
     'STANDINGS',
     `Pos | Player | Total | Base | ${sc.wackChip ? 'Wack | ' : ''}1st | 2nd | 3rd | 4th`,
-    ...st.table.map((r, i) => [i + 1, name(r.id), r.points, r.base, ...(sc.wackChip ? [r.bonus] : []), ...r.places].join(' | ')),
+    ...st.table.map(r => [r.pos + 1, name(r.id), r.points, r.base, ...(sc.wackChip ? [r.bonus] : []), ...r.places].join(' | ')),
   ];
   if (st.chip) lines.push('', `Wack Chip currently held by ${name(st.chip.holder)} (worth +${st.chip.next} next game)`);
   return lines.join('\n');
@@ -927,7 +951,7 @@ $('#adminForm').addEventListener('submit', async e => {
   }
   if (!isNew && status === 'complete') {
     const st = computeStandings(data.players, S.games, data.scoring);
-    data.champion = data.players.find(p => p.id === st.table[0]?.id)?.name || '';
+    data.champion = st.table.filter(r => r.pos === 0).map(r => data.players.find(p => p.id === r.id)?.name).join(' & ');
     data.gameCount = S.games.length;
   }
   err.textContent = 'SAVING...';

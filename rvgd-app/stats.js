@@ -108,9 +108,10 @@ export function computeGlobal(tours) {
     const valid = t.games.filter(g => (g.placings || []).length === 4 && g.placings.every(id => names[id]));
     if (t.status === 'complete' && valid.length) {
       const st = computeStandings(t.players, valid, t.scoring || {});
-      const champ = names[st.table[0].id];
-      get(champ).titles++;
-      honours.push({ number: t.number, title: t.title, subtitle: t.subtitle, champion: champ });
+      // Joint champions (level on points) each get the title.
+      const champs = st.table.filter(r => r.pos === 0).map(r => names[r.id]);
+      champs.forEach(c => get(c).titles++);
+      honours.push({ number: t.number, title: t.title, subtitle: t.subtitle, champion: champs.join(' & ') });
     }
     for (const g of valid) {
       const place = {};
