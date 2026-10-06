@@ -10,8 +10,6 @@ const FIREBASE_CONFIG = {
   projectId: 'rvgd-101026',
   appId: '1:964478178587:web:2c3e38372733a952592fbe',
 };
-// Free key from https://rawg.io/apidocs. Without it, search only covers games already played.
-const RAWG_KEY = '';
 
 const COLORS = ['#ffd43a', '#70ceff', '#ff5c8a', '#6dff9b'];
 const PLACE = ['1ST', '2ND', '3RD', '4TH'];
@@ -63,7 +61,7 @@ init();
 
 async function init() {
   try {
-    store = await createStore(FIREBASE_CONFIG);
+    store = await createStore(new URLSearchParams(location.search).has('demo') ? null : FIREBASE_CONFIG);
   } catch (e) {
     $('#view').innerHTML = `<div class="empty"><p>COULD NOT CONNECT.<br>CHECK YOUR SIGNAL AND RELOAD.</p></div>`;
     return;
@@ -117,7 +115,7 @@ async function showArchive() {
       </a></li>`).join('') || '<li class="empty"><p>NO TOURNAMENTS YET</p></li>'}
     </ul>
     <p class="foot"><button class="btn" id="newBtn" type="button">+ NEW TOURNAMENT</button></p>
-    <p class="foot"><a href="./">SPUNJLABS.COM</a> &middot; GAME DATA FROM <a href="https://rawg.io" target="_blank" rel="noopener">RAWG</a></p>`;
+    <p class="foot"><a href="./">SPUNJLABS.COM</a> &middot; GAME ART FROM <a href="https://en.wikipedia.org" target="_blank" rel="noopener">WIKIPEDIA</a></p>`;
   $('#newBtn').onclick = async () => { if (await requireAdmin()) openAdmin(null); };
 }
 
@@ -182,7 +180,7 @@ function renderTournament() {
     const pg = st.perGame[g.id] || {};
     const cls = isNew(g.id) ? ' new' : g.id === S.flash ? ' flash' : '';
     return `<button class="row${cls}" type="button" data-id="${esc(g.id)}" ${live() ? '' : 'disabled'} aria-label="Game ${i + 1}: ${esc(g.name)}">
-      <div class="g" ${g.cover ? `style="background-image:url('${esc(g.cover)}')"` : ''}><i>#${i + 1}</i><span>${esc(g.name)}</span></div>
+      <div class="g">${g.cover ? `<img class="cv" src="${esc(g.cover)}" alt="" loading="lazy" decoding="async">` : ''}<span class="gt"><i>#${i + 1}</i><span>${esc(g.name)}</span></span></div>
       ${[0, 1, 2, 3].map(k => {
         const p = pById(g.placings?.[k]);
         const b = pg.bonus && pg.bonus.player === p?.id ? `<span class="chipb">${chipIcon()}+${pg.bonus.amount}</span>` : '';
@@ -291,7 +289,7 @@ const searchInput = $('#searchInput');
 
 function openGame(g) {
   draft = g
-    ? { id: g.id, game: { rawgId: g.rawgId, name: g.name, cover: g.cover, year: g.year, platforms: g.platforms }, placings: [...(g.placings || [])] }
+    ? { id: g.id, game: { gameId: g.gameId ?? g.rawgId, name: g.name, cover: g.cover, year: g.year, platforms: g.platforms }, placings: [...(g.placings || [])] }
     : { id: null, game: null, placings: [] };
   $('#deleteBtn').hidden = !g;
   $('#deleteBtn').classList.remove('armed');
@@ -321,14 +319,14 @@ function showStep(step, back) {
 
 // search
 const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
-const rawgCache = new Map();
+const wikiCache = new Map();
 let searchTimer, searchCtl, lastResults = [];
 
 async function localGames() {
   if (!pool) pool = await store.loadPool();
   const map = new Map();
-  [...S.games].reverse().forEach(g => map.set(String(g.rawgId ?? norm(g.name)), { rawgId: g.rawgId, name: g.name, cover: g.cover, year: g.year, platforms: g.platforms, local: true }));
-  pool.forEach(p => { if (!map.has(String(p.id))) map.set(String(p.id), { rawgId: isNaN(p.id) ? p.id : +p.id, name: p.name, cover: p.cover, year: p.year, platforms: p.platforms, local: true }); });
+  [...S.games].reverse().forEach(g => map.set(String(g.gameId ?? g.rawgId ?? norm(g.name)), { gameId: g.gameId ?? g.rawgId, name: g.name, cover: g.cover, year: g.year, platforms: g.platforms, local: true }));
+  pool.forEach(p => { if (!map.has(String(p.id))) map.set(String(p.id), { gameId: p.id, name: p.name, cover: p.cover, year: p.year, platforms: p.platforms, local: true }); });
   return [...map.values()];
 }
 
@@ -360,48 +358,68 @@ async function runLocal(q) {
 async function runSearch(q) {
   const loc = await runLocal(q);
   const n = norm(q);
-  if (!n || n.length < 2 || !RAWG_KEY) { renderResults(q, loc, RAWG_KEY || !n ? [] : null); return; }
+  if (n.length < 2) { renderResults(q, loc, []); return; }
   searchCtl?.abort();
   searchCtl = new AbortController();
-  let remote = rawgCache.get(n);
+  let remote = wikiCache.get(n);
   if (!remote) {
     renderResults(q, loc, 'loading');
     try {
-      const r = await fetch(`https://api.rawg.io/api/games?key=${RAWG_KEY}&search=${encodeURIComponent(q)}&page_size=12&search_precise=true`, { signal: searchCtl.signal });
-      const j = await r.json();
-      remote = (j.results || []).map(x => ({
-        rawgId: x.id, name: x.name, year: x.released ? +x.released.slice(0, 4) : null,
-        cover: crop(x.background_image),
-        platforms: (x.platforms || []).map(p => p.platform.name).slice(0, 3).join(', '),
-      }));
-      rawgCache.set(n, remote);
+      remote = await wikiSearch(q, searchCtl.signal);
+      wikiCache.set(n, remote);
     } catch (e) {
       if (e.name === 'AbortError') return;
       remote = [];
     }
   }
   if (searchInput.value !== q) return;
-  const have = new Set(loc.map(g => String(g.rawgId ?? norm(g.name))));
-  renderResults(q, loc, remote.filter(g => !have.has(String(g.rawgId))));
+  const have = new Set(loc.map(g => String(g.gameId ?? norm(g.name))));
+  const names = new Set(loc.map(g => norm(g.name) + g.year));
+  renderResults(q, loc, remote.filter(g => !have.has(String(g.gameId)) && !names.has(norm(g.name) + g.year)));
 }
 
-function crop(url) {
-  return url ? url.replace('/media/games/', '/media/crop/600/400/games/').replace('/media/screenshots/', '/media/crop/600/400/screenshots/') : '';
+// Wikipedia: title autocomplete (good ordering) plus a full-text search limited to
+// articles with a video game infobox (catches partial words mid-title). Both are
+// keyless and CORS-enabled. pilicense=any is needed to get non-free box art.
+async function wikiSearch(q, signal) {
+  const api = params => fetch('https://en.wikipedia.org/w/api.php?' + new URLSearchParams({
+    action: 'query', format: 'json', formatversion: '2', origin: '*', redirects: '1',
+    prop: 'pageimages|description', piprop: 'thumbnail', pithumbsize: '240', pilicense: 'any', ...params,
+  }), { signal }).then(r => r.json()).then(j => (j.query?.pages || []).sort((a, b) => a.index - b.index));
+  const clean = q.replace(/[^\p{L}\p{N}' ]+/gu, ' ').trim();
+  const [prefix, full] = await Promise.all([
+    api({ generator: 'prefixsearch', gpssearch: q.trim(), gpslimit: '12' }),
+    api({ generator: 'search', gsrsearch: `${clean}* hastemplate:"Infobox video game"`, gsrlimit: '10', gsrnamespace: '0' }),
+  ]);
+  const seen = new Set();
+  return [...prefix.filter(p => /game/i.test(p.description || '')), ...full]
+    .filter(p => !seen.has(p.pageid) && seen.add(p.pageid))
+    .slice(0, 12)
+    .map(p => {
+      const desc = p.description || '';
+      const year = +(desc.match(/\b(19[5-9]\d|20\d\d)\b/)?.[1] || p.title.match(/\((\d{4})[^)]*\)$/)?.[1] || 0) || null;
+      return {
+        gameId: `w-${p.pageid}`,
+        name: p.title.replace(/\s*\([^)]*\b(game|video)\b[^)]*\)$/i, ''),
+        year,
+        cover: p.thumbnail?.source?.replace(/[?&]utm_[^#]*$/, '') || '',
+        platforms: desc.replace(/\b(19[5-9]\d|20\d\d)\b/, '').replace(/\bvideo game\b/i, '').replace(/\s+/g, ' ').trim(),
+      };
+    });
 }
 
 function renderResults(q, loc, remote) {
   const list = [...loc, ...(Array.isArray(remote) ? remote : [])];
   lastResults = list;
   const item = (g, i) => `<li><button type="button" role="option" data-i="${i}">
-      <span class="art" ${g.cover ? `style="background-image:url('${esc(g.cover)}')"` : ''}>${g.cover ? '' : '?'}</span>
+      <span class="art">${g.cover ? `<img src="${esc(g.cover)}" alt="" loading="lazy" decoding="async">` : '?'}</span>
       <span class="tx"><b>${esc(g.name)}</b><small>${[g.year, g.platforms].filter(Boolean).map(esc).join(' &middot; ') || '&nbsp;'}</small></span>
       ${g.local ? '<span class="tag">POOL</span>' : ''}</button></li>`;
   const qq = q.trim();
   $('#results').innerHTML = list.map(item).join('')
     + (remote === 'loading' ? `<li class="note">SEARCHING<span class="blink">_</span></li>` : '')
     + (qq ? `<li><button type="button" data-custom="1"><span class="art">+</span><span class="tx"><b>${esc(qq)}</b><small>Add as typed, without art</small></span></button></li>` : '')
-    + (!qq && !list.length ? `<li class="note">START TYPING A GAME NAME</li>` : '')
-    + (qq && !RAWG_KEY ? `<li class="note">ONLINE SEARCH IS OFF.<br>ADD A RAWG KEY IN APP.JS.</li>` : '');
+    + (!qq && !list.length ? `<li class="note">START TYPING A GAME NAME</li>` : '');
 }
 
 $('#results').addEventListener('click', e => {
@@ -409,7 +427,7 @@ $('#results').addEventListener('click', e => {
   if (!b) return;
   if (b.dataset.custom) {
     const name = searchInput.value.trim();
-    draft.game = { rawgId: 'x-' + norm(name).replace(/ /g, '-'), name, cover: '', year: null, platforms: '' };
+    draft.game = { gameId: 'x-' + norm(name).replace(/ /g, '-'), name, cover: '', year: null, platforms: '' };
   } else {
     draft.game = lastResults[+b.dataset.i];
   }
@@ -422,8 +440,7 @@ $('#results').addEventListener('click', e => {
 // placings
 function renderPlace() {
   const g = draft.game, ps = players(), pl = draft.placings;
-  $('#picked').style.backgroundImage = g.cover ? `url('${g.cover}')` : '';
-  $('#picked').innerHTML = `<div><strong>${esc(g.name)}</strong><small>${[g.year, g.platforms].filter(Boolean).map(esc).join(' &middot; ')}</small></div><button type="button" id="changeGame">CHANGE</button>`;
+  $('#picked').innerHTML = `${g.cover ? `<img class="cv" src="${esc(g.cover)}" alt="">` : ''}<div class="pt"><strong>${esc(g.name)}</strong><small>${[g.year, g.platforms].filter(Boolean).map(esc).join(' &middot; ')}</small></div><button type="button" id="changeGame">CHANGE</button>`;
   $('#changeGame').onclick = () => { showStep('search', true); searchInput.value = ''; runSearch(''); searchInput.focus(); };
   $('#slots').innerHTML = PLACE.map((label, i) => {
     const p = ps.find(x => x.id === pl[i]);
@@ -458,7 +475,7 @@ $('#slots').addEventListener('click', e => {
 $('#saveBtn').onclick = () => {
   if (draft.placings.length !== 4) return;
   const t = S.t, g = draft.game;
-  const data = { rawgId: g.rawgId, name: g.name, cover: g.cover || '', year: g.year || null, platforms: g.platforms || '', placings: draft.placings };
+  const data = { gameId: g.gameId, name: g.name, cover: g.cover || '', year: g.year || null, platforms: g.platforms || '', placings: draft.placings };
   const fail = () => toast('SAVE FAILED - CHECK PIN / SIGNAL', true);
   if (draft.id) {
     S.flash = draft.id;
@@ -469,8 +486,8 @@ $('#saveBtn').onclick = () => {
     store.addGame(t, { ...data, order }).catch(fail);
     toast(`${g.name.toUpperCase()} SAVED!`);
   }
-  store.savePool(t, g).catch(() => {});
-  if (pool && !pool.some(p => String(p.id) === String(g.rawgId))) pool.push({ id: String(g.rawgId), ...g });
+  if (g.gameId) store.savePool(t, g).catch(() => {});
+  if (pool && !pool.some(p => String(p.id) === String(g.gameId))) pool.push({ id: String(g.gameId), ...g });
   closeSheet($('#gameSheet'));
 };
 

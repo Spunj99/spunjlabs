@@ -74,7 +74,7 @@ async function firebaseStore(config) {
       try { return (await fs.getDocs(fs.collection(db, 'pool'))).docs.map(d => ({ id: d.id, ...d.data() })); }
       catch { return []; }
     },
-    savePool: (t, g) => fs.setDoc(fs.doc(db, 'pool', String(g.rawgId)),
+    savePool: (t, g) => fs.setDoc(fs.doc(db, 'pool', String(g.gameId)),
       { name: g.name, cover: g.cover || '', year: g.year || null, platforms: g.platforms || '', t, updatedAt: ts() }, { merge: true }),
     async saveTournament(t, data, pin) {
       const b = fs.writeBatch(db);
@@ -119,7 +119,7 @@ function localStore() {
     updateGame: async (t, id, g) => { const x = games(t).find(x => x.id === id); Object.assign(x, g); save(); },
     deleteGame: async (t, id) => { data.games[t] = games(t).filter(x => x.id !== id); save(); },
     loadPool: async () => Object.entries(data.pool).map(([id, p]) => ({ id, ...p })),
-    savePool: async (t, g) => { data.pool[g.rawgId] = { name: g.name, cover: g.cover || '', year: g.year || null, platforms: g.platforms || '', t }; save(); },
+    savePool: async (t, g) => { data.pool[g.gameId] = { name: g.name, cover: g.cover || '', year: g.year || null, platforms: g.platforms || '', t }; save(); },
     saveTournament: async (t, d) => { data.tournaments[t] = { ...(data.tournaments[t] || {}), ...clone(d) }; save(); },
   };
 }
