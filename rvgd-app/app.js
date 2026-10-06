@@ -38,6 +38,9 @@ const SKULL = ['..XXXXXX..', '.XXXXXXXX.', 'XXXXXXXXXX', 'XX..XX..XX', 'XX..XX..
 const LOCK = ['..XXXXXX..', '.XX....XX.', '.X......X.', '.X......X.', 'XXXXXXXXXX', 'XXXXXXXXXX', 'XXXX..XXXX', 'XXXX..XXXX', 'XXXXXXXXXX', 'XXXXXXXXXX'];
 const UNLOCK = ['..XXXXXX..', '.XX....XX.', '.X......X.', '.X........', 'XXXXXXXXXX', 'XXXXXXXXXX', 'XXXX..XXXX', 'XXXX..XXXX', 'XXXXXXXXXX', 'XXXXXXXXXX'];
 const ARROW = ['....X.....', '...XX.....', '..XXX.....', '.XXXXXXXXX', 'XXXXXXXXXX', '.XXXXXXXXX', '..XXX.....', '...XX.....', '....X.....'];
+// Up = oldest game first, down = newest first.
+const SORT_UP = ['...X...', '..XXX..', '.XXXXX.', 'XXXXXXX'];
+const SORT_DOWN = [...SORT_UP].reverse();
 const placeIcon = i => i < 3 ? px(TROPHY, ['gold', 'silver', 'bronze'][i]) : px(SKULL, 'wood');
 const chipIcon = () => `<svg class="px chip" viewBox="0 0 16 16" aria-hidden="true" shape-rendering="crispEdges"><circle cx="8" cy="8" r="7.5" fill="#e8642a"/><circle cx="8" cy="8" r="5.2" fill="#7c2d10"/>${[0, 1, 2, 3, 4, 5, 6, 7].map(i => { const a = i * Math.PI / 4; return `<rect x="${(8 + 6.3 * Math.cos(a) - .6).toFixed(1)}" y="${(8 + 6.3 * Math.sin(a) - .6).toFixed(1)}" width="1.2" height="1.2" fill="#7c2d10"/>`; }).join('')}<rect x="5" y="6" width="1.2" height="4" fill="#fff"/><rect x="9.8" y="6" width="1.2" height="4" fill="#fff"/><rect x="6.2" y="8.6" width="1.2" height="1.4" fill="#fff"/><rect x="8.6" y="8.6" width="1.2" height="1.4" fill="#fff"/><rect x="7.4" y="7.4" width="1.2" height="1.4" fill="#fff"/></svg>`;
 
@@ -53,6 +56,9 @@ let store;
 let unsub = [];
 const S = { t: null, tour: null, games: [], st: null, editable: false, seen: null, flash: null };
 let pool = null;
+// Per-viewer table order preference; storage can be unavailable (private mode etc).
+let newestFirst = false;
+try { newestFirst = localStorage.getItem('rvgd-newest-first') === '1'; } catch {}
 
 // ---------- boot ----------
 $('#homeBtn').innerHTML = px(ARROW);
@@ -155,7 +161,7 @@ function renderChrome() {
   if (!tr) return;
   const title = tr.title || `RVGD ${roman(tr.number)}`;
   document.title = `${title} | SpunjLabs`;
-  $('#barTitle').innerHTML = `<span class="t1">${esc(title)}</span>${tr.subtitle ? `<span class="t2">${esc(tr.subtitle)}</span>` : ''}`;
+  $('#barTitle').innerHTML = `<span class="t1${title.length > 12 ? ' long' : ''}">${esc(title)}</span>${tr.subtitle ? `<span class="t2">${esc(tr.subtitle)}</span>` : ''}`;
   $('#standingsBtn').hidden = false;
   const lock = $('#lockBtn');
   lock.hidden = !live();
@@ -171,7 +177,8 @@ function renderTournament() {
   const st = S.st = computeStandings(ps, S.games, scoring());
   const last = S.games[S.games.length - 1];
   // Loser picks next; after a team game, the losing team does.
-  const pickers = (last?.placings || []).filter((_, i) => placeOf(last, i) === (last.team ? 1 : 3)).map(pById).filter(Boolean);
+  const lastRank = last ? Math.max(...(last.placings || []).map((_, i) => placeOf(last, i))) : -1;
+  const pickers = (last?.placings || []).filter((_, i) => placeOf(last, i) === lastRank).map(pById).filter(Boolean);
   const chipP = st.chip && pById(st.chip.holder);
   const champ = !live() && st.table[0] && pById(st.table[0].id);
 
@@ -193,7 +200,8 @@ function renderTournament() {
         return `<div class="c${k === 0 ? ' p1' : ''}${ids.length > 1 ? ' multi' : ''}">${cell}</div>`;
       }).join('')}
     </button>`;
-  }).reverse().join('');
+  });
+  const rowsHtml = (newestFirst ? rows.reverse() : rows).join('');
 
   $('#view').innerHTML = `
     ${champ ? `<div class="champ"><small>&#9733; CHAMPION &#9733;</small><strong>${esc(champ.name)}</strong></div>` : ''}
@@ -203,11 +211,12 @@ function renderTournament() {
       ${store.demo ? `<span class="pill demo">DEMO MODE</span>` : ''}
     </div>
     <div class="tbl" role="table" aria-label="Results">
-      <div class="row head" role="row"><div>GAME</div>${PLACE.map((p, i) => `<div>${placeIcon(i)}${i === 3 ? p : ''}</div>`).join('')}</div>
-      ${rows || `<div class="empty"><p class="big">${px(TROPHY)}</p><p>NO GAMES YET.<br>${live() ? 'PRESS + ADD GAME TO START' : ''}</p></div>`}
+      <div class="row head" role="row"><div><button class="sort" id="sortBtn" type="button" aria-label="Order: ${newestFirst ? 'newest' : 'oldest'} first. Tap to flip">GAME ${px(newestFirst ? SORT_DOWN : SORT_UP)}</button></div>${PLACE.map((p, i) => `<div>${placeIcon(i)}${i === 3 ? p : ''}</div>`).join('')}</div>
+      ${rowsHtml || `<div class="empty"><p class="big">${px(TROPHY)}</p><p>NO GAMES YET.<br>${live() ? 'PRESS + ADD GAME TO START' : ''}</p></div>`}
     </div>`;
 
-  if (S.seen && S.games.some(g => !S.seen.has(g.id))) pulseTab();
+  // Oldest game is at the top, so bring a newly added row into view at the bottom.
+  if (S.seen && S.games.some(g => !S.seen.has(g.id))) { pulseTab(); $('#view .row.new')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
   S.seen = new Set(S.games.map(g => g.id));
   S.flash = null;
   if ($('#standingsSheet').open) renderStandings();
@@ -221,6 +230,13 @@ function pulseTab() {
 }
 
 $('#view').addEventListener('click', async e => {
+  if (e.target.closest('#sortBtn')) {
+    newestFirst = !newestFirst;
+    try { localStorage.setItem('rvgd-newest-first', newestFirst ? '1' : '0'); } catch {}
+    renderTournament();
+    $('#view .tbl')?.classList.add('flip');
+    return;
+  }
   const row = e.target.closest('button.row');
   if (!row || !live()) return;
   const g = S.games.find(x => x.id === row.dataset.id);
@@ -295,8 +311,8 @@ const searchInput = $('#searchInput');
 
 function openGame(g) {
   draft = g
-    ? { id: g.id, game: { gameId: g.gameId ?? g.rawgId, name: g.name, cover: g.cover, year: g.year, platforms: g.platforms }, team: !!g.team, placings: g.team ? (g.placings || []).slice(0, g.winners) : [...(g.placings || [])] }
-    : { id: null, game: null, team: false, placings: [] };
+    ? { id: g.id, game: { gameId: g.gameId ?? g.rawgId, name: g.name, cover: g.cover, year: g.year, platforms: g.platforms }, team: !!g.team && !g.ranks, placings: g.team && !g.ranks ? (g.placings || []).slice(0, g.winners) : [...(g.placings || [])], ties: [0, 1, 2, 3].map(i => !!g.ranks && i > 0 && g.ranks[i] === g.ranks[i - 1]) }
+    : { id: null, game: null, team: false, placings: [], ties: [false, false, false, false] };
   $('#deleteBtn').hidden = !g;
   $('#deleteBtn').classList.remove('armed');
   $('#deleteBtn').textContent = 'DELETE';
@@ -469,15 +485,26 @@ function renderPlace() {
     $('#saveBtn').disabled = !ok;
     return;
   }
-  slots.innerHTML = PLACE.map((label, i) => {
-    const p = ps.find(x => x.id === pl[i]);
-    return `<li><button type="button" data-slot="${i}" class="${p ? 'filled' : i === pl.length ? 'cur' : ''}" ${p ? `aria-label="${label}: ${esc(p.name)}, tap to redo"` : `aria-label="${label}"`}>
-      ${placeIcon(i)}${p ? names([p.id]) : `<span class="nm">${label}</span>`}</button></li>`;
+  // Solo: "=" between slots ties a player with the one above (next place follows on: 1, 1, 2, 3).
+  const r = ranks();
+  slots.innerHTML = PLACE.map((_, i) => {
+    const p = ps.find(x => x.id === pl[i]), label = PLACE[r[i]];
+    const tie = i > 0 && i <= pl.length
+      ? `<button type="button" class="tie${draft.ties[i] ? ' on' : ''}" data-tie="${i}" aria-pressed="${!!draft.ties[i]}" aria-label="Tied with ${PLACE[r[i - 1]]}">=</button>` : '';
+    return `<li>${tie}<button type="button" data-slot="${i}" class="${p ? 'filled' : i === pl.length ? 'cur' : ''}" ${p ? `aria-label="${label}: ${esc(p.name)}, tap to redo"` : `aria-label="${label}"`}>
+      ${placeIcon(r[i])}${p ? names([p.id]) : `<span class="nm">${label}</span>`}</button></li>`;
   }).join('');
   const n = pl.length;
-  $('#ask').innerHTML = n < 4 ? `WHO CAME ${PLACE[n]}?<span class="blink">_</span>` : `&#9733; READY TO SAVE &#9733;`;
+  $('#ask').innerHTML = n < 4 ? `WHO ${draft.ties[n] ? 'ELSE ' : ''}CAME ${PLACE[r[n]]}?<span class="blink">_</span>` : `&#9733; READY TO SAVE &#9733;`;
   $('#pads').innerHTML = ps.map(p => `<button class="pad" type="button" data-p="${esc(p.id)}" style="--pc:${p.color}" ${pl.includes(p.id) ? 'disabled' : ''}>${esc(p.name)}</button>`).join('');
   $('#saveBtn').disabled = n !== 4;
+}
+
+// Dense ranks from the tie links: [0, 0, 1, 2] for a tie for 1st.
+function ranks() {
+  const r = [0];
+  for (let i = 1; i < 4; i++) r[i] = draft.ties[i] ? r[i - 1] : r[i - 1] + 1;
+  return r;
 }
 
 $('#pads').addEventListener('click', e => {
@@ -496,30 +523,50 @@ $('#pads').addEventListener('click', e => {
   renderPlace();
 });
 $('#slots').addEventListener('click', e => {
+  const tie = e.target.closest('[data-tie]');
+  if (tie) {
+    const i = +tie.dataset.tie;
+    draft.ties[i] = !draft.ties[i];
+    navigator.vibrate?.(10);
+    renderPlace();
+    return;
+  }
   const b = e.target.closest('[data-slot]');
   if (!b) return;
   const i = +b.dataset.slot;
   if (draft.team) { if (i === 0 && draft.placings.length) { draft.placings = []; renderPlace(); } return; }
-  if (i < draft.placings.length) { draft.placings = draft.placings.slice(0, Math.min(i, 2)); renderPlace(); }
+  if (i < draft.placings.length) {
+    draft.placings = draft.placings.slice(0, Math.min(i, 2));
+    draft.ties = draft.ties.map((t, j) => j <= draft.placings.length && t);
+    renderPlace();
+  }
 });
 $('#teamToggle').addEventListener('change', e => {
   draft.team = e.target.checked;
   draft.placings = [];
+  draft.ties = [false, false, false, false];
   navigator.vibrate?.(10);
   renderPlace();
 });
 $('#resetBtn').onclick = () => {
   draft.placings = [];
+  draft.ties = [false, false, false, false];
   navigator.vibrate?.(10);
   renderPlace();
 };
 
 $('#saveBtn').onclick = () => {
-  const team = draft.team, k = draft.placings.length;
+  let team = draft.team, k = draft.placings.length;
   if (team ? !(k >= 1 && k <= 3) : k !== 4) return;
   const t = S.t, g = draft.game;
   const placings = team ? [...draft.placings, ...restOf(draft.placings)] : draft.placings;
-  const data = { gameId: g.gameId, name: g.name, cover: g.cover || '', year: g.year || null, platforms: g.platforms || '', placings, team, winners: team ? k : null };
+  // Solo ties: only joint 1sts and 2nds is a team game; anything else keeps its tied ranks.
+  let rk = null;
+  if (!team && draft.ties.some(Boolean)) {
+    rk = ranks();
+    if (rk.every(x => x <= 1) && rk.includes(1)) { team = true; k = rk.filter(x => x === 0).length; rk = null; }
+  }
+  const data = { gameId: g.gameId, name: g.name, cover: g.cover || '', year: g.year || null, platforms: g.platforms || '', placings, team, winners: team ? k : null, ranks: rk };
   const fail = () => toast('SAVE FAILED - CHECK PIN / SIGNAL', true);
   if (draft.id) {
     S.flash = draft.id;
@@ -560,7 +607,7 @@ function renderStandings() {
         <span class="tot">${r.points}<small>PTS</small></span>
       </li>`;
     }).join('')}</ol>
-    <p class="sub">GAMES <b>${S.games.length}</b> &middot; POINTS <b>${sc.points.join('/')}</b>
+    <p class="sub">GAMES <b>${S.games.length}</b> &middot; POINTS <b>${sc.points.join('/')}</b>${sc.lowWins ? ' &middot; <b>LOWEST WINS</b>' : ''}
     ${sc.wackChip ? `<br>WACK CHIP <b>ON</b>${chipP ? ` &middot; HELD BY <b style="color:${chipP.color}">${esc(chipP.name)}</b> (+${st.chip.next} NEXT GAME)` : ''}` : ''}</p>`;
   $('#adminBtn').hidden = false;
 }
@@ -572,7 +619,7 @@ function exportText() {
   const lines = [
     title,
     `Players: ${players().map(p => p.name).join(', ')}`,
-    `Scoring: 1st ${sc.points[0]}, 2nd ${sc.points[1]}, 3rd ${sc.points[2]}, 4th ${sc.points[3]}`
+    (sc.lowWins ? 'Scoring: each player scores their finishing place (1st = 1, 2nd = 2, 3rd = 3, 4th = 4) and the lowest total wins. Tied players share the same place' : `Scoring: 1st ${sc.points[0]}, 2nd ${sc.points[1]}, 3rd ${sc.points[2]}, 4th ${sc.points[3]}`)
       + '. Team games: everyone on the winning team scores 1st, everyone on the losing team scores 2nd.'
       + (sc.wackChip ? ' Wack Chip ON: whoever is last overall holds it; it adds +1, +2, +3... to their score for each game they keep holding it, and resets to 0 when it passes on.' : ' Wack Chip OFF.'),
     `Status: ${live() ? 'in progress' : 'complete'} | Games played: ${S.games.length}`,
@@ -624,6 +671,7 @@ function openAdmin(tr) {
   (tr?.players || []).forEach((p, i) => { f[`p${i + 1}`].value = p.name; });
   sc.points.forEach((v, i) => { f[`s${i + 1}`].value = v; });
   f.wackChip.checked = !!sc.wackChip;
+  f.lowWins.checked = !!sc.lowWins;
   f.complete.checked = tr?.status === 'complete';
   f.pin.placeholder = tr ? 'Leave blank to keep' : 'Required';
   f.pin.required = !tr && !store.demo;
@@ -643,10 +691,10 @@ $('#adminForm').addEventListener('submit', async e => {
   const status = f.complete.checked ? 'complete' : 'live';
   const data = {
     number: n,
-    title: `RVGD ${roman(n)}`,
+    title: isNew ? `RVGD ${roman(n)}` : (S.tour?.title || `RVGD ${roman(n)}`),
     subtitle: f.subtitle.value.trim(),
     players: [1, 2, 3, 4].map(i => ({ id: `p${i}`, name: f[`p${i}`].value.trim().toUpperCase() })),
-    scoring: { points: [1, 2, 3, 4].map(i => +f[`s${i}`].value), wackChip: f.wackChip.checked },
+    scoring: { points: [1, 2, 3, 4].map(i => +f[`s${i}`].value), wackChip: f.wackChip.checked, lowWins: f.lowWins.checked },
     status,
   };
   if (isNew) data.createdAt = new Date().toISOString();

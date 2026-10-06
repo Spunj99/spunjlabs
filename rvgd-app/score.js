@@ -1,14 +1,18 @@
 // RVGD scoring. Pure functions only: standings are always derived from the
 // ordered game list, never stored, so editing an old game re-flows everything.
 
-export const DEFAULT_SCORING = { points: [10, 8, 7, 6], wackChip: false };
+// lowWins: totals are summed finishing places and the lowest total wins (used by
+// older tournaments, with points [1, 2, 3, 4]). The Wack Chip only applies when high wins.
+export const DEFAULT_SCORING = { points: [10, 8, 7, 6], wackChip: false, lowWins: false };
 
 // 0-based finishing place of the player at index i of a game's placings.
-export const placeOf = (g, i) => g.team ? (i < g.winners ? 0 : 1) : i;
+// ranks (imported results) allows ties; team games are winners then losers.
+export const placeOf = (g, i) => g.ranks ? g.ranks[i] : g.team ? (i < g.winners ? 0 : 1) : i;
 
 export function computeStandings(players, games, scoring = DEFAULT_SCORING) {
   const pts = scoring.points || DEFAULT_SCORING.points;
-  const wack = !!scoring.wackChip;
+  const low = !!scoring.lowWins;
+  const wack = !!scoring.wackChip && !low;
   const ids = players.map(p => p.id);
   const tot = Object.fromEntries(ids.map(id => [id, { id, base: 0, bonus: 0, points: 0, places: [0, 0, 0, 0], played: 0 }]));
 
@@ -17,10 +21,11 @@ export function computeStandings(players, games, scoring = DEFAULT_SCORING) {
 
   for (const g of games) {
     const pl = g.placings || [];
-    const bad = pl.length !== 4 || pl.some(id => !tot[id]) || (g.team && !(g.winners >= 1 && g.winners <= 3));
+    const bad = pl.length !== 4 || pl.some(id => !tot[id])
+      || (g.team && !g.ranks && !(g.winners >= 1 && g.winners <= 3))
+      || (g.ranks && (g.ranks.length !== 4 || g.ranks.some(r => !(r >= 0 && r <= 3))));
     if (bad) { perGame[g.id] = { bonus: null, holder, value: held }; continue; }
 
-    // Team games: placings are winners then losers; winners score as 1st, losers as 2nd.
     pl.forEach((id, i) => {
       const r = placeOf(g, i), t = tot[id];
       t.base += pts[r] || 0; t.places[r]++; t.played++;
@@ -47,7 +52,8 @@ export function computeStandings(players, games, scoring = DEFAULT_SCORING) {
   }
 
   const table = ids.map(id => tot[id]).sort((a, b) =>
-    b.points - a.points || b.places[0] - a.places[0] || b.places[1] - a.places[1] || b.places[2] - a.places[2]);
+    (low ? a.points - b.points : b.points - a.points) ||
+    b.places[0] - a.places[0] || b.places[1] - a.places[1] || b.places[2] - a.places[2]);
 
   return {
     table,
@@ -111,6 +117,14 @@ export function selfTest() {
   check('team tie for last gives chip to a loser', ['z', 'w'].includes(r.chip.holder));
   r = computeStandings(Q, [{ id: 1, team: true, winners: 1, placings: ['x', 'y', 'z', 'w'] }], on([10, 8, 7, 6]));
   check('team 1v3', pts(r, 'x') === 10 && pts(r, 'w') === 8);
+
+  // Tied places (imported results) and lowest-total-wins scoring.
+  const low = { points: [1, 2, 3, 4], wackChip: true, lowWins: true };
+  r = computeStandings(Q, [{ id: 1, placings: ['w', 'z', 'x', 'y'], ranks: [0, 1, 2, 2] }, g(2, ['x', 'y', 'z', 'w'])], low);
+  check('tied 3rd scores 3 each', pts(r, 'x') === 4 && pts(r, 'y') === 5 && pts(r, 'z') === 5 && pts(r, 'w') === 5);
+  check('lowest total ranks first', r.table[0].id === 'x');
+  check('tie on total broken by wins', r.table[1].id === 'w');
+  check('no chip when lowest wins', r.chip === null);
 
   // Editing an earlier game re-flows the chip history.
   const e = [g(1, ['x', 'y', 'z', 'w']), g(2, ['x', 'y', 'z', 'w'])];
