@@ -44,6 +44,7 @@ const ARROW = ['....X.....', '...XX.....', '..XXX.....', '.XXXXXXXXX', 'XXXXXXXX
 // Up = oldest game first, down = newest first.
 const SORT_UP = ['...X...', '..XXX..', '.XXXXX.', 'XXXXXXX'];
 const SORT_DOWN = [...SORT_UP].reverse();
+const CAMERA = ['...XXX....', 'XXXXXXXXXX', 'X........X', 'X...XX...X', 'X..X..X..X', 'X..X..X..X', 'X...XX...X', 'X........X', 'XXXXXXXXXX'];
 const WHEEL = ['..XXXXX..', '.X..X..X.', 'X.X.X.X.X', 'X..XXX..X', 'XXXXXXXXX', 'X..XXX..X', 'X.X.X.X.X', '.X..X..X.', '..XXXXX..'];
 const placeIcon = i => i < 3 ? px(TROPHY, ['gold', 'silver', 'bronze'][i]) : px(SKULL, 'wood');
 const chipIcon = () => `<svg class="px chip" viewBox="0 0 16 16" aria-hidden="true" shape-rendering="crispEdges"><circle cx="8" cy="8" r="7.5" fill="#e8642a"/><circle cx="8" cy="8" r="5.2" fill="#7c2d10"/>${[0, 1, 2, 3, 4, 5, 6, 7].map(i => { const a = i * Math.PI / 4; return `<rect x="${(8 + 6.3 * Math.cos(a) - .6).toFixed(1)}" y="${(8 + 6.3 * Math.sin(a) - .6).toFixed(1)}" width="1.2" height="1.2" fill="#7c2d10"/>`; }).join('')}<rect x="5" y="6" width="1.2" height="4" fill="#fff"/><rect x="9.8" y="6" width="1.2" height="4" fill="#fff"/><rect x="6.2" y="8.6" width="1.2" height="1.4" fill="#fff"/><rect x="8.6" y="8.6" width="1.2" height="1.4" fill="#fff"/><rect x="7.4" y="7.4" width="1.2" height="1.4" fill="#fff"/></svg>`;
@@ -68,11 +69,28 @@ let pool = null;
 // Per-viewer table order preference; storage can be unavailable (private mode etc).
 let newestFirst = false;
 try { newestFirst = localStorage.getItem('rvgd-newest-first') === '1'; } catch {}
+// Photo galleries only show on devices that have unlocked scoring (any tournament) or admin.
+let trusted = false;
+try { trusted = localStorage.getItem('rvgd-trusted') === '1'; } catch {}
+function markTrusted() {
+  if (trusted) return;
+  trusted = true;
+  try { localStorage.setItem('rvgd-trusted', '1'); } catch {}
+  if (S.tour) renderChrome();
+}
+// gallery/index.json lists the photos per folder (rvgd-<number>); built by gallery/build-gallery.ps1.
+let galleryIndex = {};
+const galleryKey = () => `rvgd-${S.tour?.number ?? S.t}`;
+const photos = () => galleryIndex[galleryKey()] || [];
+fetch('rvgd-app/gallery/index.json', { cache: 'no-cache' }).then(r => r.ok ? r.json() : {}).catch(() => ({}))
+  .then(x => { galleryIndex = x || {}; if (S.tour) renderChrome(); });
 
 // ---------- boot ----------
 $('#homeBtn').innerHTML = px(ARROW);
 $('#standingsBtn').innerHTML = px(TROPHY);
 $('#statsBtn').innerHTML = px(CHART);
+$('#wheelBtn').innerHTML = px(WHEEL);
+$('#galleryBtn').innerHTML = px(CAMERA);
 init();
 
 async function init() {
@@ -115,7 +133,7 @@ async function showArchive() {
   Object.assign(S, { t: null, tour: null, games: [], st: null });
   document.title = 'RVGD | SpunjLabs';
   $('#barTitle').innerHTML = `<span class="t1">RVGD</span><span class="t2">Retro Video Games Day</span>`;
-  ['#homeBtn', '#lockBtn', '#standingsBtn', '#addBtn'].forEach(s => $(s).hidden = true);
+  ['#homeBtn', '#wheelBtn', '#galleryBtn', '#lockBtn', '#standingsBtn', '#addBtn'].forEach(s => $(s).hidden = true);
   $('#statsBtn').hidden = false;
   $('.bar').classList.add('no-tab'); // no trophy tab on the archive, so use the full width
   let list;
@@ -153,7 +171,7 @@ function showTournament(t) {
     S.tour = tour;
     if (!tour) {
       $('#barTitle').innerHTML = `<span class="t1">RVGD${/^\d+$/.test(t) ? ' ' + roman(+t) : ''}</span>`;
-      ['#statsBtn', '#lockBtn', '#standingsBtn', '#addBtn'].forEach(s => $(s).hidden = true);
+      ['#statsBtn', '#wheelBtn', '#galleryBtn', '#lockBtn', '#standingsBtn', '#addBtn'].forEach(s => $(s).hidden = true);
       $('#view').innerHTML = `<div class="empty"><p class="big">?</p><p>TOURNAMENT NOT FOUND</p></div>`;
       return;
     }
@@ -163,7 +181,7 @@ function showTournament(t) {
     S.games = games;
     if (gotTour && S.tour) renderTournament();
   }));
-  store.isEditor(t).then(ok => { if (S.t === t) { S.editable = ok; renderChrome(); } });
+  store.isEditor(t).then(ok => { if (ok) markTrusted(); if (S.t === t) { S.editable = ok; renderChrome(); } });
 }
 
 const live = () => S.tour?.status !== 'complete';
@@ -179,6 +197,8 @@ function renderChrome() {
   $('#barTitle').innerHTML = `<span class="t1${title.length > 12 ? ' long' : ''}">${esc(title)}</span>${tr.subtitle ? `<span class="t2">${esc(tr.subtitle)}</span>` : ''}`;
   $('#standingsBtn').hidden = false;
   $('#statsBtn').hidden = false;
+  $('#wheelBtn').hidden = !live();
+  $('#galleryBtn').hidden = live() || !trusted || !photos().length;
   const lock = $('#lockBtn');
   lock.hidden = !live();
   lock.innerHTML = px(S.editable ? UNLOCK : LOCK);
@@ -228,9 +248,7 @@ function renderTournament() {
     <div class="banner">
       ${live() && pickers.length ? `<span class="pill next"><span class="blink">&#9654;</span>${pickers.map(p => `<b style="color:${p.color}">${esc(p.name)}</b>`).join(' OR ')} ${pickers.length > 1 ? 'PICK' : 'PICKS'} NEXT</span>` : ''}
       ${chipP ? `<span class="pill wack" title="Wack Chip: ${esc(chipP.name)} gets +${st.chip.next} after the next game">${chipIcon()}<span>WACK <b style="color:${chipP.color}">${esc(chipP.name)}</b> +${st.chip.next}</span></span>` : ''}
-      ${store.demo ? `<span class="pill demo">DEMO MODE</span>` : ''}
-      ${live() ? `<button class="pill spin" id="wheelBtn" type="button" aria-label="Spin the wheel for a 1v1 draw">${px(WHEEL)} SPIN</button>` : ''}
-    </div>
+      ${store.demo ? `<span class="pill demo">DEMO MODE</span>` : ''}    </div>
     <div class="tbl" role="table" aria-label="Results">
       <div class="row head" role="row"><div><button class="sort" id="sortBtn" type="button" aria-label="Order: ${newestFirst ? 'newest' : 'oldest'} first. Tap to flip">GAME ${px(newestFirst ? SORT_DOWN : SORT_UP)}</button></div>${PLACE.map((p, i) => `<div>${placeIcon(i)}${i === 3 ? p : ''}</div>`).join('')}</div>
       ${rowsHtml || `<div class="empty"><p class="big">${px(TROPHY)}</p><p>NO GAMES YET.<br>${live() ? 'PRESS + ADD GAME TO START' : ''}</p></div>`}
@@ -252,7 +270,6 @@ function pulseTab() {
 }
 
 $('#view').addEventListener('click', async e => {
-  if (e.target.closest('#wheelBtn')) return openWheel();
   if (e.target.closest('#sortBtn')) {
     newestFirst = !newestFirst;
     try { localStorage.setItem('rvgd-newest-first', newestFirst ? '1' : '0'); } catch {}
@@ -360,9 +377,93 @@ function spinWheel() {
     navigator.vibrate?.([20, 60, 20]);
   }, dur + 50);
 }
+$('#wheelBtn').onclick = openWheel;
 $('#wheelSpin').onclick = spinWheel;
 $('#wheel').onclick = spinWheel;
 $('#wheelReset').onclick = resetWheel;
+
+// ---------- bookie odds (for fun) ----------
+// Rates each player on recent form (latest tournaments count most) plus game win rate,
+// turns that into a share of the market with a bookie's overround, and snaps it to a
+// familiar fractional price. Largely nonsense, by design.
+const PRICES = ['1/5', '1/4', '1/3', '2/5', '1/2', '4/6', '4/5', 'EVS', '6/4', '2/1', '5/2', '3/1', '7/2', '4/1', '9/2', '5/1', '6/1', '7/1', '8/1', '10/1', '12/1', '14/1', '16/1', '20/1', '25/1', '33/1', '50/1', '66/1', '100/1'];
+const priceValue = s => s === 'EVS' ? 1 : s.split('/').reduce((a, b) => a / b);
+function fakeOdds(ps) {
+  const FINISH = [4, 2, 1, 0.3];
+  const rating = ps.map(p => {
+    const form = p.form.length ? p.form.reduce((a, f, i) => a + (i + 1) * (FINISH[f.pos - 1] ?? 0), 0) / p.form.reduce((a, _, i) => a + i + 1, 0) : 0.3;
+    // Fewer than five events: regress towards an average outsider.
+    const seen = Math.min(p.form.length, 5) / 5;
+    return Math.max(0.05, (form * seen + 0.8 * (1 - seen)) + 3 * p.winRate);
+  });
+  const sq = rating.map(r => r * r), total = sq.reduce((a, b) => a + b, 0);
+  return sq.map(s => {
+    const chance = Math.min(0.95, (s / total) * 1.18); // 18% overround
+    const want = 1 / chance - 1;
+    return PRICES.reduce((best, p) => Math.abs(Math.log(priceValue(p) / want)) < Math.abs(Math.log(priceValue(best) / want)) ? p : best);
+  });
+}
+
+// ---------- photo gallery ----------
+// A paged grid of thumbnails (swipe or arrows, 9 a page); tapping one opens a full-screen
+// viewer that also swipes. Both are horizontal scroll-snap strips, so swiping is native.
+const PER_PAGE = 9;
+const photoUrl = (kind, f) => `rvgd-app/gallery/${encodeURIComponent(galleryKey())}/${kind}/${encodeURIComponent(f)}`;
+const stripIndex = el => Math.round(el.scrollLeft / Math.max(el.clientWidth, 1));
+const stripTo = (el, i, smooth) => el.scrollTo({ left: i * el.clientWidth, behavior: smooth ? 'smooth' : 'instant' });
+
+function openGallery() {
+  const list = photos();
+  const pages = [];
+  for (let i = 0; i < list.length; i += PER_PAGE) pages.push(list.slice(i, i + PER_PAGE));
+  $('#galleryTitle').innerHTML = `GALLERY <small class="gsub">${list.length} PHOTO${list.length === 1 ? '' : 'S'}</small>`;
+  $('#gPages').innerHTML = pages.map((pg, p) => `<div class="gpage">${pg.map((f, k) => {
+    const i = p * PER_PAGE + k;
+    return `<button class="gthumb" type="button" data-photo="${i}" aria-label="Photo ${i + 1}"><img src="${photoUrl('_thumb', f)}" alt="" loading="${p ? 'lazy' : 'eager'}" decoding="async"></button>`;
+  }).join('')}</div>`).join('');
+  $('#gNav').hidden = pages.length < 2;
+  openSheet($('#gallerySheet'));
+  requestAnimationFrame(() => { stripTo($('#gPages'), 0); galleryNav(); });
+}
+function galleryNav() {
+  const el = $('#gPages'), n = el.children.length, i = stripIndex(el);
+  $('#gCount').textContent = `PAGE ${i + 1} / ${n}`;
+  $('#gPrev').disabled = i === 0;
+  $('#gNext').disabled = i >= n - 1;
+}
+$('#galleryBtn').onclick = openGallery;
+$('#gPages').addEventListener('scroll', galleryNav, { passive: true });
+$('#gPrev').onclick = () => stripTo($('#gPages'), stripIndex($('#gPages')) - 1, true);
+$('#gNext').onclick = () => stripTo($('#gPages'), stripIndex($('#gPages')) + 1, true);
+$('#gPages').addEventListener('click', e => {
+  const b = e.target.closest('[data-photo]');
+  if (b) openViewer(+b.dataset.photo);
+});
+
+function openViewer(start) {
+  const v = $('#viewer'), strip = $('#vStrip'), list = photos();
+  strip.innerHTML = list.map((f, i) => `<div class="vslide"><img src="${photoUrl('_web', f)}" alt="Photo ${i + 1} of ${list.length}" loading="${Math.abs(i - start) <= 1 ? 'eager' : 'lazy'}" decoding="async"></div>`).join('');
+  v.showModal();
+  requestAnimationFrame(() => { stripTo(strip, start); viewerNav(); });
+}
+function viewerNav() {
+  const strip = $('#vStrip'), n = strip.children.length, i = stripIndex(strip);
+  $('#vCount').textContent = `${i + 1} / ${n}`;
+  $('#vPrev').disabled = i === 0;
+  $('#vNext').disabled = i >= n - 1;
+}
+$('#vStrip').addEventListener('scroll', viewerNav, { passive: true });
+$('#vPrev').onclick = () => stripTo($('#vStrip'), stripIndex($('#vStrip')) - 1, true);
+$('#vNext').onclick = () => stripTo($('#vStrip'), stripIndex($('#vStrip')) + 1, true);
+$('#vClose').onclick = () => $('#viewer').close();
+// Keyboard arrows page the grid, or step through photos when the viewer is open.
+document.addEventListener('keydown', e => {
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  const el = $('#viewer').open ? $('#vStrip') : $('#gallerySheet').open ? $('#gPages') : null;
+  if (!el) return;
+  e.preventDefault();
+  stripTo(el, stripIndex(el) + (e.key === 'ArrowLeft' ? -1 : 1), true);
+});
 
 // ---------- PIN ----------
 function askPin(kind) {
@@ -392,13 +493,14 @@ function askPin(kind) {
 }
 async function requireEditor() {
   if (S.editable) return true;
-  if (await askPin('editor')) { S.editable = true; renderChrome(); return true; }
+  if (await askPin('editor')) { S.editable = true; markTrusted(); renderChrome(); return true; }
   return false;
 }
 let isAdmin = false;
 async function requireAdmin() {
-  if (isAdmin || (isAdmin = await store.isAdmin())) return true;
-  return (isAdmin = await askPin('admin'));
+  if (isAdmin || (isAdmin = await store.isAdmin())) return markTrusted(), true;
+  if ((isAdmin = await askPin('admin'))) markTrusted();
+  return isAdmin;
 }
 
 // ---------- add / edit game ----------
@@ -932,6 +1034,7 @@ async function openGlobal() {
   const gameLine = (b, label) => b ? `<div class="gl2">${art(b.cover)}<div><small>${label}</small><b>${esc(b.name)}</b>
     <span>avg ${b.avg.toFixed(1)} &middot; ${b.plays} ${b.plays === 1 ? 'play' : 'plays'} &middot; ${b.wins} ${b.wins === 1 ? 'win' : 'wins'}</span></div></div>` : '';
   const names = g.players.map(p => p.name);
+  const odds = fakeOdds(g.players);
 
   $('#statsBody').innerHTML = `
     <div class="kpis">
@@ -965,9 +1068,9 @@ async function openGlobal() {
     <p class="note">AVG = average finishing place in a game (1 = always 1st), whatever the scoring.</p>
 
     ${g.players.some(p => p.form.length) ? `<h3 class="hh">FORM</h3>
-    <ul class="formg">${g.players.map(p => `<li><b>${esc(p.name)}</b><span>${p.form.map(f =>
-      `<i class="f${Math.min(f.pos, 4)}" title="RVGD ${roman(f.number)}: ${PLACE[f.pos - 1] || f.pos}">${f.pos}<em>${roman(f.number)}</em></i>`).join('')}</span></li>`).join('')}</ul>
-    <p class="note">Overall finish in each of their last five tournaments, oldest to latest.</p>` : ''}
+    <ul class="formg">${g.players.map((p, i) => `<li><b>${esc(p.name)}</b><span>${p.form.map(f =>
+      `<i class="f${Math.min(f.pos, 4)}" title="RVGD ${roman(f.number)}: ${PLACE[f.pos - 1] || f.pos}">${f.pos}<em>${roman(f.number)}</em></i>`).join('')}</span><small class="odds">ODDS<b>${odds[i]}</b></small></li>`).join('')}</ul>
+    <p class="note">Overall finish in each of their last five tournaments, oldest to latest. Odds to win the next one are made up from form and win rate, with the bookie's cut. Not financial advice.</p>` : ''}
 
     <h3 class="hh">BEST &amp; WEAKEST GAMES</h3>
     <div class="pgames">${g.players.map(p => `<div class="pg"><h4>${esc(p.name)}</h4>

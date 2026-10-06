@@ -1,2 +1,6 @@
 rvgd-backups/
 CLAUDE.md
+# RVGD gallery: keep original photos local; only the resized _web/_thumb copies are published
+rvgd-app/gallery/*/*
+!rvgd-app/gallery/*/_web/
+!rvgd-app/gallery/*/_thumb/

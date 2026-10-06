@@ -29,6 +29,8 @@
   <div class="bar-title" id="barTitle">
     <span class="t1">RVGD</span>
   </div>
+  <button class="bar-btn" id="wheelBtn" type="button" aria-label="1v1 draw wheel" hidden></button>
+  <button class="bar-btn" id="galleryBtn" type="button" aria-label="Photo gallery" hidden></button>
   <button class="bar-btn" id="statsBtn" type="button" aria-label="Stats" hidden></button>
   <button class="bar-btn" id="lockBtn" type="button" aria-label="Unlock scoring" hidden></button>
   <button class="trophy-tab" id="standingsBtn" type="button" aria-label="Standings" hidden></button>
@@ -114,6 +116,31 @@
       <button class="btn primary" id="wheelSpin" type="button">SPIN &#9654;</button>
     </div>
   </div>
+</dialog>
+
+<!-- Photo gallery: paged grid of thumbnails -->
+<dialog class="sheet" id="gallerySheet" aria-labelledby="galleryTitle">
+  <div class="sheet-in">
+    <div class="sheet-head">
+      <h2 id="galleryTitle">GALLERY</h2>
+      <button class="x" type="button" data-close aria-label="Close">&times;</button>
+    </div>
+    <div class="gpages" id="gPages"></div>
+    <div class="gnav" id="gNav">
+      <button class="garr" id="gPrev" type="button" aria-label="Previous page">&#9664;</button>
+      <span id="gCount"></span>
+      <button class="garr" id="gNext" type="button" aria-label="Next page">&#9654;</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- Full-screen photo viewer -->
+<dialog class="viewer" id="viewer" aria-label="Photo">
+  <div class="vstrip" id="vStrip"></div>
+  <span class="vcount" id="vCount"></span>
+  <button class="x vx" id="vClose" type="button" aria-label="Close">&times;</button>
+  <button class="varr prev" id="vPrev" type="button" aria-label="Previous photo">&#9664;</button>
+  <button class="varr next" id="vNext" type="button" aria-label="Next photo">&#9654;</button>
 </dialog>
 
 <!-- PIN -->

@@ -362,9 +362,6 @@ a.tile{color:inherit;text-decoration:none}
 .tile.link small::after{content:" \25B6";color:var(--blue)}
 
 /* 1v1 draw wheel */
-.pill.spin{margin-left:auto;cursor:pointer;border-color:#1f5f7a;color:var(--blue);white-space:nowrap;box-shadow:0 2px 0 #000}
-.pill.spin:active{transform:translateY(2px);box-shadow:none}
-.pill.spin .px{font-size:12px}
 .wheel-wrap{position:relative;width:min(78vw,300px,44dvh);margin:6px auto 0}
 .wheel-wrap svg{display:block;width:100%;height:auto;cursor:pointer;filter:drop-shadow(4px 4px 0 #000)}
 .wheel-ptr{position:absolute;left:50%;top:-8px;z-index:2;transform:translateX(-50%);border:13px solid transparent;border-top:22px solid var(--yellow);border-bottom:0;filter:drop-shadow(0 3px 0 #000)}
@@ -383,3 +380,36 @@ a.tile{color:inherit;text-decoration:none}
 .draw b{font-weight:400;font-size:26px;line-height:1;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .draw b.dim{color:var(--line2)}
 .draw .v{font:400 9px var(--pixel);color:var(--mut)}
+/* four bar buttons on a tour page: tighten them up on narrow phones so the title still fits */
+@media (max-width:389px){.bar{gap:6px}.bar-btn{width:36px;height:36px;font-size:20px}}
+
+/* photo gallery: paged thumbnail grid */
+.gsub{font:400 7px var(--pixel);color:var(--mut)}
+.gpages{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;overscroll-behavior-x:contain;scrollbar-width:none;align-items:flex-start}
+.gpages::-webkit-scrollbar{display:none}
+.gpage{flex:0 0 100%;scroll-snap-align:start;display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.gthumb{aspect-ratio:1;padding:0;border:2px solid #000;background:#1d1d33;cursor:pointer;overflow:hidden;box-shadow:2px 2px 0 #000;transition:transform .12s}
+.gthumb:active{transform:scale(.96)}
+.gthumb:focus-visible{outline:2px solid var(--yellow);outline-offset:1px}
+.gthumb img{width:100%;height:100%;object-fit:cover}
+.gnav{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;font:400 8px var(--pixel);color:var(--mut)}
+.garr{width:52px;height:44px;border:2px solid var(--line2);background:var(--panel);color:var(--yellow);font:400 14px var(--pixel);cursor:pointer;box-shadow:0 3px 0 #000}
+.garr:active{transform:translateY(2px);box-shadow:0 1px 0 #000}
+.garr:disabled{opacity:.3;cursor:default;transform:none}
+
+/* full-screen photo viewer */
+.viewer{position:fixed;inset:0;width:100vw;height:100dvh;max-width:none;max-height:none;margin:0;padding:0;border:0;background:#000;color:var(--fg);overflow:hidden}
+.viewer[open]{animation:fade .2s}
+.viewer::backdrop{background:#000}
+.vstrip{display:flex;width:100%;height:100%;overflow-x:auto;scroll-snap-type:x mandatory;overscroll-behavior-x:contain;scrollbar-width:none}
+.vstrip::-webkit-scrollbar{display:none}
+.vslide{flex:0 0 100%;height:100%;scroll-snap-align:center;display:grid;place-items:center}
+.vslide img{max-width:100%;max-height:100%;object-fit:contain}
+.vx{position:absolute;top:calc(10px + env(safe-area-inset-top,0px));right:10px;z-index:2;background:#000a}
+.vcount{position:absolute;top:calc(22px + env(safe-area-inset-top,0px));left:14px;z-index:2;font:400 9px var(--pixel);color:var(--fg);text-shadow:2px 2px 0 #000}
+.varr{position:absolute;top:50%;z-index:2;transform:translateY(-50%);width:44px;height:64px;border:2px solid var(--line2);background:#000a;color:var(--yellow);font:400 14px var(--pixel);cursor:pointer}
+.varr.prev{left:8px}.varr.next{right:8px}
+.varr:disabled{opacity:0;pointer-events:none}
+/* bookie odds on the form guide */
+.formg .odds{margin-left:auto;flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:4px;font:400 6px var(--pixel);color:var(--mut)}
+.formg .odds b{width:auto;font:400 11px var(--pixel);color:var(--green)}
