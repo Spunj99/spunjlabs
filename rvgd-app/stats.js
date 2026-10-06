@@ -93,3 +93,61 @@ export function computeStats(players, games, scoring) {
 
   return { games: rows.length, history, per, leadChanges, rivalry, chip, top };
 }
+
+// All-time stats across tournaments. Players are matched by name, games by gameId
+// (falling back to the name). Places, not points, are compared, since scoring varies.
+export function computeGlobal(tours) {
+  const key = n => String(n || '').trim().toUpperCase();
+  const gid = g => String(g.gameId ?? g.rawgId ?? 'n-' + key(g.name));
+  const P = {}, h2h = {}, G = {}, honours = [];
+  const get = name => (P[name] ||= { name, tournaments: 0, titles: 0, games: 0, wins: 0, lasts: 0, placeSum: 0, byGame: {} });
+
+  for (const t of tours) {
+    const names = Object.fromEntries((t.players || []).map(p => [p.id, key(p.name)]));
+    Object.values(names).forEach(n => get(n).tournaments++);
+    const valid = t.games.filter(g => (g.placings || []).length === 4 && g.placings.every(id => names[id]));
+    if (t.status === 'complete' && valid.length) {
+      const st = computeStandings(t.players, valid, t.scoring || {});
+      const champ = names[st.table[0].id];
+      get(champ).titles++;
+      honours.push({ number: t.number, title: t.title, subtitle: t.subtitle, champion: champ });
+    }
+    for (const g of valid) {
+      const place = {};
+      g.placings.forEach((id, i) => { place[names[id]] = placeOf(g, i); });
+      const last = Math.max(...Object.values(place));
+      const id = gid(g);
+      const gg = (G[id] ||= { name: g.name, cover: '', plays: 0, tours: new Set() });
+      gg.plays++; gg.tours.add(t.number); if (g.cover) gg.cover = g.cover;
+      for (const [n, r] of Object.entries(place)) {
+        const s = get(n);
+        s.games++; s.placeSum += r + 1;
+        if (r === 0) s.wins++;
+        if (r === last) s.lasts++;
+        const b = (s.byGame[id] ||= { name: g.name, cover: '', plays: 0, placeSum: 0, wins: 0 });
+        b.plays++; b.placeSum += r + 1; if (r === 0) b.wins++; if (g.cover) b.cover = g.cover;
+        for (const [m, q] of Object.entries(place)) {
+          if (m === n) continue;
+          const hh = ((h2h[n] ||= {})[m] ||= { w: 0, l: 0 });
+          if (r < q) hh.w++; else if (r > q) hh.l++;
+        }
+      }
+    }
+  }
+
+  // Best / weakest game: average finish over games played at least twice (once, if nothing repeats).
+  const players = Object.values(P).filter(p => p.games).map(p => {
+    const list = Object.values(p.byGame).map(b => ({ ...b, avg: b.placeSum / b.plays }));
+    const pool = list.some(b => b.plays >= 2) ? list.filter(b => b.plays >= 2) : list;
+    const best = [...pool].sort((a, b) => a.avg - b.avg || b.plays - a.plays || b.wins - a.wins)[0] || null;
+    const worst = [...pool].sort((a, b) => b.avg - a.avg || b.plays - a.plays || a.wins - b.wins)[0] || null;
+    return { ...p, avg: p.placeSum / p.games, winRate: p.wins / p.games, best, worst: worst === best ? null : worst };
+  }).sort((a, b) => b.titles - a.titles || b.winRate - a.winRate || a.avg - b.avg);
+
+  const mostPlayed = Object.values(G).sort((a, b) => b.plays - a.plays || b.tours.size - a.tours.size).slice(0, 5)
+    .map(g => ({ ...g, tours: g.tours.size }));
+  return {
+    players, h2h, honours: honours.sort((a, b) => b.number - a.number), mostPlayed,
+    tournaments: tours.length, games: tours.reduce((a, t) => a + t.games.length, 0),
+  };
+}

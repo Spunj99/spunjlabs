@@ -1,6 +1,6 @@
 import { createStore } from './store.js';
 import { computeStandings, placeOf, DEFAULT_SCORING, selfTest } from './score.js';
-import { computeStats } from './stats.js';
+import { computeStats, computeGlobal } from './stats.js';
 
 // ---- config: paste from Firebase console > Project settings > Your apps ----
 // These are public identifiers, not secrets. Security comes from firestore.rules.
@@ -108,12 +108,14 @@ async function showArchive() {
   Object.assign(S, { t: null, tour: null, games: [], st: null });
   document.title = 'RVGD | SpunjLabs';
   $('#barTitle').innerHTML = `<span class="t1">RVGD</span><span class="t2">Retro Video Games Day</span>`;
-  ['#homeBtn', '#statsBtn', '#lockBtn', '#standingsBtn', '#addBtn'].forEach(s => $(s).hidden = true);
+  ['#homeBtn', '#lockBtn', '#standingsBtn', '#addBtn'].forEach(s => $(s).hidden = true);
+  $('#statsBtn').hidden = false;
   let list;
   try { list = await store.listTournaments(); }
   catch { $('#view').innerHTML = `<div class="empty"><p>COULD NOT LOAD TOURNAMENTS.</p></div>`; return; }
   $('#view').innerHTML = `
-    <div class="hero"><h1>RETRO<br>VIDEO GAMES<br>DAY</h1><p>&#9654; SELECT TOURNAMENT<span class="blink">_</span></p></div>
+    <div class="hero"><h1>RETRO<br>VIDEO GAMES<br>DAY</h1><p>&#9654; SELECT TOURNAMENT<span class="blink">_</span></p>
+      <button class="btn primary hof" id="hofBtn" type="button">&#9733; HALL OF FAME &#9733;</button></div>
     ${store.demo ? `<div class="banner"><span class="pill demo">DEMO MODE &middot; SAVED ON THIS DEVICE ONLY</span></div>` : ''}
     <ul class="cards">${list.map(t => `
       <li><a class="card" data-nav href="${BASE}?t=${t.number}">
@@ -127,6 +129,7 @@ async function showArchive() {
     <p class="foot"><button class="btn" id="newBtn" type="button">+ NEW TOURNAMENT</button></p>
     <p class="foot"><a href="./">SPUNJLABS.COM</a> &middot; GAME ART FROM <a href="https://en.wikipedia.org" target="_blank" rel="noopener">WIKIPEDIA</a></p>`;
   $('#newBtn').onclick = async () => { if (await requireAdmin()) openAdmin(null); };
+  $('#hofBtn').onclick = openGlobal;
 }
 
 // ---------- tournament ----------
@@ -255,7 +258,7 @@ $('#lockBtn').onclick = async () => {
   else if (await requireEditor()) toast('UNLOCKED! READY PLAYER ONE');
 };
 $('#standingsBtn').onclick = () => { renderStandings(); openSheet($('#standingsSheet')); };
-$('#statsBtn').onclick = () => { renderStats(); openSheet($('#statsSheet')); };
+$('#statsBtn').onclick = () => { if (!S.t) return openGlobal(); renderStats(); openSheet($('#statsSheet')); };
 
 // ---------- sheets ----------
 function openSheet(d) {
@@ -796,6 +799,71 @@ function bindRace(s, ps, sc) {
     cross.setAttribute('x2', -10);
     $('#raceDots').innerHTML = '';
   });
+}
+
+// ---------- all-time stats (archive) ----------
+async function openGlobal() {
+  $('#statsTitle').innerHTML = `${px(TROPHY, 'gold')} HALL OF FAME`;
+  $('#statsBody').innerHTML = `<p class="loading">LOADING<span class="blink">_</span></p>`;
+  openSheet($('#statsSheet'));
+  let g;
+  try {
+    const list = await store.listTournaments();
+    const tours = await Promise.all(list.map(async t => ({ ...t, games: await store.loadGames(t.id) })));
+    g = computeGlobal(tours);
+  } catch {
+    $('#statsBody').innerHTML = `<div class="empty"><p>COULD NOT LOAD STATS.</p></div>`;
+    return;
+  }
+  if (!g.players.length) {
+    $('#statsBody').innerHTML = `<div class="empty"><p>NO GAMES PLAYED YET</p></div>`;
+    return;
+  }
+  const pct = v => `${Math.round(v * 100)}%`;
+  const art = c => `<span class="gart">${c ? `<img src="${esc(c)}" alt="" loading="lazy">` : '?'}</span>`;
+  const gameLine = (b, label) => b ? `<div class="gl2">${art(b.cover)}<div><small>${label}</small><b>${esc(b.name)}</b>
+    <span>avg ${b.avg.toFixed(1)} &middot; ${b.plays} ${b.plays === 1 ? 'play' : 'plays'} &middot; ${b.wins} ${b.wins === 1 ? 'win' : 'wins'}</span></div></div>` : '';
+  const names = g.players.map(p => p.name);
+
+  $('#statsBody').innerHTML = `
+    <div class="kpis">
+      <div><b>${g.tournaments}</b><small>TOURNAMENTS</small></div>
+      <div><b>${g.games}</b><small>GAMES</small></div>
+      <div><b>${g.players.length}</b><small>PLAYERS</small></div>
+    </div>
+
+    ${g.honours.length ? `<h3 class="hh">ROLL OF HONOUR</h3>
+    <ul class="honours">${g.honours.map(h => `<li><span class="num">${roman(h.number)}</span>
+      <span class="ht">${esc(h.subtitle || h.title || '')}</span><b>${px(TROPHY, 'gold')} ${esc(h.champion)}</b></li>`).join('')}</ul>` : ''}
+
+    <h3 class="hh">CAREER</h3>
+    <div class="scroll"><table class="career">
+      <thead><tr><th>PLAYER</th><th title="Titles">${px(TROPHY, 'gold')}</th><th>EVENTS</th><th>GAMES</th><th>WINS</th><th>WIN %</th><th>AVG</th><th>LAST</th></tr></thead>
+      <tbody>${g.players.map(p => `<tr><td>${esc(p.name)}</td><td class="hl">${p.titles}</td><td>${p.tournaments}</td><td>${p.games}</td>
+        <td>${p.wins}</td><td>${pct(p.winRate)}</td><td>${p.avg.toFixed(2)}</td><td>${p.lasts}</td></tr>`).join('')}</tbody>
+    </table></div>
+    <p class="note">AVG = average finishing place (1 = always 1st). LAST = last places.</p>
+
+    <h3 class="hh">HEAD TO HEAD</h3>
+    <div class="scroll"><table class="h2h">
+      <thead><tr><th></th>${names.map(n => `<th>${esc(n)}</th>`).join('')}</tr></thead>
+      <tbody>${names.map(a => `<tr><th>${esc(a)}</th>${names.map(b => {
+        if (a === b) return '<td class="self">&ndash;</td>';
+        const r = g.h2h[a]?.[b];
+        if (!r || !(r.w + r.l)) return '<td class="none">&middot;</td>';
+        return `<td class="${r.w > r.l ? 'up' : r.w < r.l ? 'down' : ''}">${r.w}&ndash;${r.l}</td>`;
+      }).join('')}</tr>`).join('')}</tbody>
+    </table></div>
+    <p class="note">Row player finished above / below column player, across every game they both played.</p>
+
+    <h3 class="hh">BEST &amp; WEAKEST GAMES</h3>
+    <div class="pgames">${g.players.map(p => `<div class="pg"><h4>${esc(p.name)}</h4>
+      ${gameLine(p.best, 'BEST')}${gameLine(p.worst, 'WEAKEST')}</div>`).join('')}</div>
+    <p class="note">By average finish on games played at least twice, where there are any.</p>
+
+    <h3 class="hh">MOST PLAYED</h3>
+    <ol class="mp">${g.mostPlayed.map(m => `<li>${art(m.cover)}<b>${esc(m.name)}</b>
+      <span>${m.plays}&times;${m.tours > 1 ? ` &middot; ${m.tours} events` : ''}</span></li>`).join('')}</ol>`;
 }
 
 // ---------- admin ----------

@@ -42,6 +42,10 @@ async function firebaseStore(config) {
     watchTournament(t, cb) {
       return fs.onSnapshot(fs.doc(db, 'tournaments', t), d => cb(d.exists() ? { id: d.id, ...d.data() } : null), () => cb(null));
     },
+    async loadGames(t) {
+      const snap = await fs.getDocs(fs.query(fs.collection(db, 'tournaments', t, 'games'), fs.orderBy('order')));
+      return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    },
     watchGames(t, cb) {
       return fs.onSnapshot(fs.query(fs.collection(db, 'tournaments', t, 'games'), fs.orderBy('order')),
         snap => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
@@ -110,6 +114,7 @@ function localStore() {
     demo: true,
     listTournaments: async () => Object.entries(data.tournaments).map(([id, t]) => ({ id, ...clone(t) })).sort((a, b) => b.number - a.number),
     watchTournament: (t, cb) => watch(() => cb(data.tournaments[t] ? { id: t, ...clone(data.tournaments[t]) } : null)),
+    loadGames: async t => clone(games(t)).sort((a, b) => a.order - b.order),
     watchGames: (t, cb) => watch(() => cb(clone(games(t)).sort((a, b) => a.order - b.order))),
     isEditor: async () => true,
     isAdmin: async () => true,
