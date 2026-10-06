@@ -99,7 +99,7 @@ export function computeStats(players, games, scoring) {
 export function computeGlobal(tours) {
   const key = n => String(n || '').trim().toUpperCase();
   const gid = g => String(g.gameId ?? g.rawgId ?? 'n-' + key(g.name));
-  const P = {}, G = {}, finishes = [], comebacks = [], events = [];
+  const P = {}, G = {}, finishes = [], comebacks = [], events = [], streaks = [];
   const get = name => (P[name] ||= { name, tournaments: 0, titles: 0, games: 0, wins: 0, lasts: 0, placeSum: 0, byGame: {}, form: [] });
   // Oldest first, so form guides read left to right in time order.
   const ordered = [...tours].sort((a, b) => (a.seq ?? a.number ?? 0) - (b.seq ?? b.number ?? 0));
@@ -145,6 +145,15 @@ export function computeGlobal(tours) {
       const wins = {};
       valid.forEach(g => g.placings.forEach((id, i) => { if (placeOf(g, i) === 0) wins[id] = (wins[id] || 0) + 1; }));
       Object.entries(wins).forEach(([id, w]) => events.push({ id: t.id, number: t.number, subtitle: t.subtitle, name: names[id], wins: w, games: valid.length }));
+      // Longest win streak: consecutive games won (shared 1sts count) by one player in one tournament.
+      Object.keys(names).forEach(pid => {
+        let run = 0, best = null;
+        valid.forEach((g, i) => {
+          run = placeOf(g, g.placings.indexOf(pid)) === 0 ? run + 1 : 0;
+          if (run && (!best || run > best.n)) best = { n: run, from: valid[i - run + 1].name, to: g.name };
+        });
+        if (best) streaks.push({ id: t.id, number: t.number, subtitle: t.subtitle, name: names[pid], ...best });
+      });
     }
     for (const g of valid) {
       const place = {};
@@ -183,6 +192,8 @@ export function computeGlobal(tours) {
     closest: finishes.filter(f => f.closeness === Math.min(...finishes.map(x => x.closeness))).sort((a, b) => b.number - a.number),
     comeback: [...comebacks].sort((a, b) => b.score - a.score || b.lastAtHalf - a.lastAtHalf)[0] || null,
     bestEvent: events.filter(e => e.wins === Math.max(...events.map(x => x.wins))),
+    // Longest win streak: only shown when one streak holds the record outright.
+    winStreak: (top => top.length === 1 ? top[0] : null)(streaks.filter(s => s.n === Math.max(...streaks.map(x => x.n)))),
     // Most chaotic game: most plays with shared places, then the highest share of them.
     chaos: Object.values(G).filter(g => g.tied).sort((a, b) => b.tied - a.tied || b.tied / b.plays - a.tied / a.plays)[0] || null,
     tournaments: tours.length, games: tours.reduce((a, t) => a + t.games.length, 0),

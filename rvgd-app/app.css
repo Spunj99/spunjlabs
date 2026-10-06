@@ -52,7 +52,7 @@ box-shadow:inset -4px -4px 0 #c99a00;transition:transform .15s var(--ease)}
 .pill b{font-weight:400;color:var(--fg)}
 .pill.next{border-color:#6a5a10;color:var(--yellow)}
 .pill.next .blink{color:var(--yellow)}
-.pill.wack{border-color:#7a3414;color:#ffb28c}
+.pill.wack{border-color:#7a3414;color:#ffb28c;gap:6px;white-space:nowrap}
 .pill.demo{border-color:#4d2f6b;color:#d7a6ff}
 .champ{margin:4px 0 14px;padding:16px 12px;border:3px solid var(--yellow);background:linear-gradient(180deg,#2b2205,#120e02);text-align:center;box-shadow:0 0 0 3px #b5440f,0 0 30px #ffd43a33;animation:glow 2.4s ease-in-out infinite}
 .champ small{display:block;font:400 9px var(--pixel);color:var(--blue);letter-spacing:.14em;margin-bottom:10px}

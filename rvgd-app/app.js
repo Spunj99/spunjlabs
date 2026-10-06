@@ -226,7 +226,7 @@ function renderTournament() {
       <p class="runners">${groups.slice(1).map((g, i) => g && `${PLACE[i + 1]} ${g.map(r => `<b style="color:${pById(r.id).color}">${esc(pById(r.id).name)}</b>`).join(' &amp; ')} ${g[0].points}`).filter(Boolean).join(' &middot; ')}</p></div>` : ''}
     <div class="banner">
       ${live() && pickers.length ? `<span class="pill next"><span class="blink">&#9654;</span>${pickers.map(p => `<b style="color:${p.color}">${esc(p.name)}</b>`).join(' OR ')} ${pickers.length > 1 ? 'PICK' : 'PICKS'} NEXT</span>` : ''}
-      ${chipP ? `<span class="pill wack">${chipIcon()} WACK: <b style="color:${chipP.color}">${esc(chipP.name)}</b> &middot; +${st.chip.next} NEXT</span>` : ''}
+      ${chipP ? `<span class="pill wack" title="Wack Chip: ${esc(chipP.name)} gets +${st.chip.next} after the next game">${chipIcon()}<span>WACK <b style="color:${chipP.color}">${esc(chipP.name)}</b> +${st.chip.next}</span></span>` : ''}
       ${store.demo ? `<span class="pill demo">DEMO MODE</span>` : ''}
     </div>
     <div class="tbl" role="table" aria-label="Results">
@@ -875,6 +875,8 @@ async function openGlobal() {
         <span>${g.comeback.deficit} ${g.comeback.deficit === 1 ? 'point' : 'points'} off the lead after game ${g.comeback.after}${g.comeback.lastAtHalf ? ', last at halfway,' : ''} and still won</span></a>` : ''}
       ${g.bestEvent.map(e => `<a class="tile link" data-nav href="${BASE}?t=${esc(e.id)}"><small>BEST SINGLE EVENT</small><b>${esc(e.name)}<span class="amp">RVGD ${roman(e.number)}</span></b>
         <span>won ${e.wins} of ${e.games} games</span></a>`).join('')}
+      ${g.winStreak ? `<a class="tile link" data-nav href="${BASE}?t=${esc(g.winStreak.id)}"><small>LONGEST WIN STREAK</small><b>${esc(g.winStreak.name)}<span class="amp">RVGD ${roman(g.winStreak.number)}</span></b>
+        <span>${g.winStreak.n} wins in a row, ${esc(g.winStreak.from)} to ${esc(g.winStreak.to)}</span></a>` : ''}
       ${g.chaos ? `<div class="tile"><small>MOST CHAOTIC GAME</small><b>${esc(g.chaos.name)}</b>
         <span>shared places in ${g.chaos.tied} of ${g.chaos.plays} plays</span></div>` : ''}
     </div>` : ''}
