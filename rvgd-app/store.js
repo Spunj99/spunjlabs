@@ -36,8 +36,9 @@ async function firebaseStore(config) {
   return {
     demo: false,
     async listTournaments() {
-      const snap = await fs.getDocs(fs.query(fs.collection(db, 'tournaments'), fs.orderBy('number', 'desc')));
-      return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const snap = await fs.getDocs(fs.collection(db, 'tournaments'));
+      const key = t => t.seq ?? t.number ?? 0;
+      return snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => key(b) - key(a));
     },
     watchTournament(t, cb) {
       return fs.onSnapshot(fs.doc(db, 'tournaments', t), d => cb(d.exists() ? { id: d.id, ...d.data() } : null), () => cb(null));
@@ -112,7 +113,7 @@ function localStore() {
 
   return {
     demo: true,
-    listTournaments: async () => Object.entries(data.tournaments).map(([id, t]) => ({ id, ...clone(t) })).sort((a, b) => b.number - a.number),
+    listTournaments: async () => Object.entries(data.tournaments).map(([id, t]) => ({ id, ...clone(t) })).sort((a, b) => (b.seq ?? b.number ?? 0) - (a.seq ?? a.number ?? 0)),
     watchTournament: (t, cb) => watch(() => cb(data.tournaments[t] ? { id: t, ...clone(data.tournaments[t]) } : null)),
     loadGames: async t => clone(games(t)).sort((a, b) => a.order - b.order),
     watchGames: (t, cb) => watch(() => cb(clone(games(t)).sort((a, b) => a.order - b.order))),

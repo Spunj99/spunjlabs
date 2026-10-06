@@ -47,6 +47,11 @@ const SORT_DOWN = [...SORT_UP].reverse();
 const placeIcon = i => i < 3 ? px(TROPHY, ['gold', 'silver', 'bronze'][i]) : px(SKULL, 'wood');
 const chipIcon = () => `<svg class="px chip" viewBox="0 0 16 16" aria-hidden="true" shape-rendering="crispEdges"><circle cx="8" cy="8" r="7.5" fill="#e8642a"/><circle cx="8" cy="8" r="5.2" fill="#7c2d10"/>${[0, 1, 2, 3, 4, 5, 6, 7].map(i => { const a = i * Math.PI / 4; return `<rect x="${(8 + 6.3 * Math.cos(a) - .6).toFixed(1)}" y="${(8 + 6.3 * Math.sin(a) - .6).toFixed(1)}" width="1.2" height="1.2" fill="#7c2d10"/>`; }).join('')}<rect x="5" y="6" width="1.2" height="4" fill="#fff"/><rect x="9.8" y="6" width="1.2" height="4" fill="#fff"/><rect x="6.2" y="8.6" width="1.2" height="1.4" fill="#fff"/><rect x="8.6" y="8.6" width="1.2" height="1.4" fill="#fff"/><rect x="7.4" y="7.4" width="1.2" height="1.4" fill="#fff"/></svg>`;
 
+// Archive order: tournament number, or seq for numberless exhibitions (e.g. 10.5).
+const sortKey = t => t.seq ?? t.number ?? 0;
+const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+const fmtDate = d => { const [y, m, day] = String(d).split('-'); return m ? `${+day} ${MONTHS[m - 1]} ${y}` : esc(d); };
+
 function roman(n) {
   const m = [[1000, 'M'], [900, 'CM'], [500, 'D'], [400, 'CD'], [100, 'C'], [90, 'XC'], [50, 'L'], [40, 'XL'], [10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']];
   let s = '';
@@ -100,7 +105,7 @@ function route() {
   unsub.forEach(f => f());
   unsub = [];
   const t = new URLSearchParams(location.search).get('t');
-  return t ? showTournament(String(parseInt(t, 10))) : showArchive();
+  return t ? showTournament(t.replace(/[^a-z0-9-]/gi, '')) : showArchive();
 }
 
 // ---------- archive ----------
@@ -114,22 +119,21 @@ async function showArchive() {
   try { list = await store.listTournaments(); }
   catch { $('#view').innerHTML = `<div class="empty"><p>COULD NOT LOAD TOURNAMENTS.</p></div>`; return; }
   $('#view').innerHTML = `
-    <div class="hero"><h1>RETRO<br>VIDEO GAMES<br>DAY</h1><p>&#9654; SELECT TOURNAMENT<span class="blink">_</span></p>
-      <button class="btn primary hof" id="hofBtn" type="button">&#9733; HALL OF FAME &#9733;</button></div>
+    <div class="hero"><h1>RETRO<br>VIDEO GAMES<br>DAY</h1><p>&#9654; SELECT TOURNAMENT<span class="blink">_</span></p></div>
     ${store.demo ? `<div class="banner"><span class="pill demo">DEMO MODE &middot; SAVED ON THIS DEVICE ONLY</span></div>` : ''}
     <ul class="cards">${list.map(t => `
-      <li><a class="card" data-nav href="${BASE}?t=${t.number}">
-        <span class="num">${roman(t.number)}</span>
+      <li><a class="card" data-nav href="${BASE}?t=${esc(t.id)}">
+        <span class="num">${t.number ? roman(t.number) : 'EX'}</span>
         <span class="meta"><h2>${esc(t.title || 'RVGD ' + roman(t.number))}${t.subtitle ? ': ' + esc(t.subtitle) : ''}</h2>
+        ${t.date ? `<small class="date">${fmtDate(t.date)}</small>` : ''}
         <p>${t.status === 'complete'
           ? `${px(TROPHY, 'gold')} ${esc(t.champion || '?')}${t.gameCount ? ` &middot; ${t.gameCount} games` : ''}`
-          : `<span class="live">LIVE</span>`}</p></span>
+          : `<span class="live">LIVE</span>`}${t.exhibition ? ' <span class="exh">EXHIBITION</span>' : ''}</p></span>
       </a></li>`).join('') || '<li class="empty"><p>NO TOURNAMENTS YET</p></li>'}
     </ul>
     <p class="foot"><button class="btn" id="newBtn" type="button">+ NEW TOURNAMENT</button></p>
     <p class="foot"><a href="./">SPUNJLABS.COM</a> &middot; GAME ART FROM <a href="https://en.wikipedia.org" target="_blank" rel="noopener">WIKIPEDIA</a></p>`;
   $('#newBtn').onclick = async () => { if (await requireAdmin()) openAdmin(null); };
-  $('#hofBtn').onclick = openGlobal;
 }
 
 // ---------- tournament ----------
@@ -144,7 +148,7 @@ function showTournament(t) {
     gotTour = true;
     S.tour = tour;
     if (!tour) {
-      $('#barTitle').innerHTML = `<span class="t1">RVGD ${roman(+t || 0)}</span>`;
+      $('#barTitle').innerHTML = `<span class="t1">RVGD${/^\d+$/.test(t) ? ' ' + roman(+t) : ''}</span>`;
       ['#statsBtn', '#lockBtn', '#standingsBtn', '#addBtn'].forEach(s => $(s).hidden = true);
       $('#view').innerHTML = `<div class="empty"><p class="big">?</p><p>TOURNAMENT NOT FOUND</p></div>`;
       return;
@@ -806,10 +810,12 @@ async function openGlobal() {
   $('#statsTitle').innerHTML = `${px(TROPHY, 'gold')} HALL OF FAME`;
   $('#statsBody').innerHTML = `<p class="loading">LOADING<span class="blink">_</span></p>`;
   openSheet($('#statsSheet'));
-  let g;
+  let g, exhibitions = 0;
   try {
     const list = await store.listTournaments();
-    const tours = await Promise.all(list.map(async t => ({ ...t, games: await store.loadGames(t.id) })));
+    // Exhibitions keep their own page but stay out of all-time stats.
+    exhibitions = list.filter(t => t.exhibition).length;
+    const tours = await Promise.all(list.filter(t => !t.exhibition).map(async t => ({ ...t, games: await store.loadGames(t.id) })));
     g = computeGlobal(tours);
   } catch {
     $('#statsBody').innerHTML = `<div class="empty"><p>COULD NOT LOAD STATS.</p></div>`;
@@ -831,6 +837,7 @@ async function openGlobal() {
       <div><b>${g.games}</b><small>GAMES</small></div>
       <div><b>${g.players.length}</b><small>PLAYERS</small></div>
     </div>
+    ${exhibitions ? `<p class="note">${exhibitions} exhibition ${exhibitions === 1 ? 'tournament is' : 'tournaments are'} not counted.</p>` : ''}
 
     ${g.honours.length ? `<h3 class="hh">ROLL OF HONOUR</h3>
     <ul class="honours">${g.honours.map(h => `<li><span class="num">${roman(h.number)}</span>
@@ -843,18 +850,6 @@ async function openGlobal() {
         <td>${p.wins}</td><td>${pct(p.winRate)}</td><td>${p.avg.toFixed(2)}</td><td>${p.lasts}</td></tr>`).join('')}</tbody>
     </table></div>
     <p class="note">AVG = average finishing place (1 = always 1st). LAST = last places.</p>
-
-    <h3 class="hh">HEAD TO HEAD</h3>
-    <div class="scroll"><table class="h2h">
-      <thead><tr><th></th>${names.map(n => `<th>${esc(n)}</th>`).join('')}</tr></thead>
-      <tbody>${names.map(a => `<tr><th>${esc(a)}</th>${names.map(b => {
-        if (a === b) return '<td class="self">&ndash;</td>';
-        const r = g.h2h[a]?.[b];
-        if (!r || !(r.w + r.l)) return '<td class="none">&middot;</td>';
-        return `<td class="${r.w > r.l ? 'up' : r.w < r.l ? 'down' : ''}">${r.w}&ndash;${r.l}</td>`;
-      }).join('')}</tr>`).join('')}</tbody>
-    </table></div>
-    <p class="note">Row player finished above / below column player, across every game they both played.</p>
 
     <h3 class="hh">BEST &amp; WEAKEST GAMES</h3>
     <div class="pgames">${g.players.map(p => `<div class="pg"><h4>${esc(p.name)}</h4>
@@ -881,11 +876,15 @@ function openAdmin(tr) {
   f.number.value = tr?.number || '';
   f.number.readOnly = !!tr;
   f.subtitle.value = tr?.subtitle || '';
+  // New tournaments default to today (local date, not UTC).
+  const now = new Date();
+  f.date.value = tr ? tr.date || '' : new Date(now - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
   (tr?.players || []).forEach((p, i) => { f[`p${i + 1}`].value = p.name; });
   sc.points.forEach((v, i) => { f[`s${i + 1}`].value = v; });
   f.wackChip.checked = !!sc.wackChip;
   f.lowWins.checked = !!sc.lowWins;
   f.complete.checked = tr?.status === 'complete';
+  f.exhibition.checked = !!tr?.exhibition;
   f.pin.placeholder = tr ? 'Leave blank to keep' : 'Required';
   f.pin.required = !tr && !store.demo;
   f.complete.closest('label').hidden = !tr;
@@ -897,20 +896,35 @@ function openAdmin(tr) {
 $('#adminForm').addEventListener('submit', async e => {
   e.preventDefault();
   const f = e.target, err = $('#adminErr');
-  const n = parseInt(f.number.value, 10);
-  const t = String(n);
   const isNew = f.dataset.mode === 'new';
-  if (isNew && (await store.listTournaments()).some(x => x.number === n)) { err.textContent = `RVGD ${roman(n)} ALREADY EXISTS.`; return; }
+  const exhibition = f.exhibition.checked;
+  const n = parseInt(f.number.value, 10);
+  const numbered = Number.isFinite(n) && n > 0;
+  if (isNew && !numbered && !exhibition) { err.textContent = 'ENTER A NUMBER, OR MAKE IT AN EXHIBITION.'; return; }
+  const list = isNew ? await store.listTournaments() : [];
+  if (isNew && numbered && list.some(x => x.number === n)) { err.textContent = `RVGD ${roman(n)} ALREADY EXISTS.`; return; }
+  // Numberless exhibitions get a text id and sort just after the latest tournament.
+  const sub = f.subtitle.value.trim();
+  let t = S.t;
+  if (isNew) {
+    t = numbered ? String(n) : 'ex-' + (norm(sub) || 'exhibition').replace(/ /g, '-');
+    if (!numbered && list.some(x => x.id === t)) t += '-' + Date.now().toString(36).slice(-4);
+  }
   const status = f.complete.checked ? 'complete' : 'live';
   const data = {
-    number: n,
-    title: isNew ? `RVGD ${roman(n)}` : (S.tour?.title || `RVGD ${roman(n)}`),
-    subtitle: f.subtitle.value.trim(),
+    number: numbered ? n : null,
+    title: !isNew ? (S.tour?.title || `RVGD ${roman(n)}`) : numbered ? `RVGD ${roman(n)}` : `RVGD ${sub || 'Exhibition'}`,
+    subtitle: isNew && !numbered ? '' : sub,
     players: [1, 2, 3, 4].map(i => ({ id: `p${i}`, name: f[`p${i}`].value.trim().toUpperCase() })),
     scoring: { points: [1, 2, 3, 4].map(i => +f[`s${i}`].value), wackChip: f.wackChip.checked, lowWins: f.lowWins.checked },
     status,
+    exhibition: f.exhibition.checked,
+    date: f.date.value || null,
   };
-  if (isNew) data.createdAt = new Date().toISOString();
+  if (isNew) {
+    data.createdAt = new Date().toISOString();
+    if (!numbered) data.seq = Math.max(0, ...list.map(sortKey)) + 0.5;
+  }
   if (!isNew && status === 'complete') {
     const st = computeStandings(data.players, S.games, data.scoring);
     data.champion = data.players.find(p => p.id === st.table[0]?.id)?.name || '';
@@ -924,8 +938,8 @@ $('#adminForm').addEventListener('submit', async e => {
     return;
   }
   closeSheet($('#adminSheet'));
-  toast(isNew ? `RVGD ${roman(n)} CREATED!` : 'SETTINGS SAVED');
-  if (isNew) go(`${BASE}?t=${n}`);
+  toast(isNew ? `${data.title.toUpperCase()} CREATED!` : 'SETTINGS SAVED');
+  if (isNew) go(`${BASE}?t=${t}`);
 });
 
 // ---------- toast ----------

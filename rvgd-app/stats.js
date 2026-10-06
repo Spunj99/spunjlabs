@@ -99,7 +99,7 @@ export function computeStats(players, games, scoring) {
 export function computeGlobal(tours) {
   const key = n => String(n || '').trim().toUpperCase();
   const gid = g => String(g.gameId ?? g.rawgId ?? 'n-' + key(g.name));
-  const P = {}, h2h = {}, G = {}, honours = [];
+  const P = {}, G = {}, honours = [];
   const get = name => (P[name] ||= { name, tournaments: 0, titles: 0, games: 0, wins: 0, lasts: 0, placeSum: 0, byGame: {} });
 
   for (const t of tours) {
@@ -118,7 +118,7 @@ export function computeGlobal(tours) {
       const last = Math.max(...Object.values(place));
       const id = gid(g);
       const gg = (G[id] ||= { name: g.name, cover: '', plays: 0, tours: new Set() });
-      gg.plays++; gg.tours.add(t.number); if (g.cover) gg.cover = g.cover;
+      gg.plays++; gg.tours.add(t.id); if (g.cover) gg.cover = g.cover;
       for (const [n, r] of Object.entries(place)) {
         const s = get(n);
         s.games++; s.placeSum += r + 1;
@@ -126,11 +126,6 @@ export function computeGlobal(tours) {
         if (r === last) s.lasts++;
         const b = (s.byGame[id] ||= { name: g.name, cover: '', plays: 0, placeSum: 0, wins: 0 });
         b.plays++; b.placeSum += r + 1; if (r === 0) b.wins++; if (g.cover) b.cover = g.cover;
-        for (const [m, q] of Object.entries(place)) {
-          if (m === n) continue;
-          const hh = ((h2h[n] ||= {})[m] ||= { w: 0, l: 0 });
-          if (r < q) hh.w++; else if (r > q) hh.l++;
-        }
       }
     }
   }
@@ -147,7 +142,7 @@ export function computeGlobal(tours) {
   const mostPlayed = Object.values(G).sort((a, b) => b.plays - a.plays || b.tours.size - a.tours.size).slice(0, 5)
     .map(g => ({ ...g, tours: g.tours.size }));
   return {
-    players, h2h, honours: honours.sort((a, b) => b.number - a.number), mostPlayed,
+    players, honours: honours.sort((a, b) => b.number - a.number), mostPlayed,
     tournaments: tours.length, games: tours.reduce((a, t) => a + t.games.length, 0),
   };
 }

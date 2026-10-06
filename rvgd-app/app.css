@@ -304,7 +304,6 @@ padding:12px 16px;background:var(--green);color:#002a10;font:400 10px/1.4 var(--
 .tile .amp{color:var(--mut);margin:0 6px;font-size:17px}
 
 /* hall of fame */
-.hero .hof{flex:none;margin-top:18px;padding:14px 18px}
 .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .kpis div{padding:10px 6px;border:2px solid var(--line);background:var(--panel);text-align:center}
 .kpis b{display:block;font:400 20px var(--pixel);color:var(--yellow)}
@@ -317,18 +316,13 @@ padding:12px 16px;background:var(--green);color:#002a10;font:400 10px/1.4 var(--
 .honours .ht{flex:1;min-width:0;color:var(--mut);font-size:19px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .honours b{flex:none;font-weight:400;font-size:22px;display:flex;align-items:center;gap:6px}
 .scroll{overflow-x:auto;border:2px solid var(--line);background:var(--bg)}
-.career,.h2h{width:100%;border-collapse:collapse;font-size:19px}
-.career th,.h2h th{font:400 7px var(--pixel);color:var(--mut);padding:8px 6px;text-align:right;white-space:nowrap;background:var(--panel)}
-.career td,.h2h td{padding:5px 6px;border-top:1px solid var(--line);text-align:right;white-space:nowrap}
+.career{width:100%;border-collapse:collapse;font-size:19px}
+.career th{font:400 7px var(--pixel);color:var(--mut);padding:8px 6px;text-align:right;white-space:nowrap;background:var(--panel)}
+.career td{padding:5px 6px;border-top:1px solid var(--line);text-align:right;white-space:nowrap}
 .career th:first-child,.career td:first-child{text-align:left}
 .career td:first-child{color:var(--fg)}
 .career .hl{color:var(--yellow)}
 .career th .px{font-size:12px}
-.h2h tbody th{text-align:left;color:var(--fg);font:400 19px var(--term);border-top:1px solid var(--line)}
-.h2h td{text-align:center;color:var(--mut)}
-.h2h td.up{color:var(--fg);background:#6dff9b14}
-.h2h td.down{color:var(--mut)}
-.h2h td.self,.h2h td.none{color:var(--line2)}
 .pgames{display:grid;grid-template-columns:1fr;gap:8px}
 .pg{padding:10px;border:2px solid var(--line);background:var(--panel)}
 .pg h4{margin:0 0 8px;font:400 10px var(--pixel);color:var(--fg)}
@@ -345,3 +339,6 @@ padding:12px 16px;background:var(--green);color:#002a10;font:400 10px/1.4 var(--
 .mp b{flex:1;min-width:0;font-weight:400;font-size:21px}
 .mp span:not(.gart){flex:none;color:var(--mut);font-size:18px}
 @media (min-width:560px){.pgames{grid-template-columns:1fr 1fr}}
+.card .exh{font:400 8px var(--pixel);color:#d7a6ff;border:2px solid #4d2f6b;padding:4px 6px;margin-left:4px;white-space:nowrap}
+.card .date{display:block;margin:-2px 0 6px;font:400 8px var(--pixel);color:var(--blue);letter-spacing:.06em}
+.form input[type=date]{width:100%;border:2px solid var(--line2);background:#05050c;padding:8px 10px;font:400 22px/1 var(--term);color:var(--fg);color-scheme:dark}

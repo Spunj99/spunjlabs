@@ -120,8 +120,9 @@
       <button class="x" type="button" data-close aria-label="Close">&times;</button>
     </div>
     <div class="form">
-      <label>NUMBER <input name="number" type="number" min="1" max="999" inputmode="numeric" required></label>
+      <label>NUMBER <input name="number" type="number" min="1" max="999" inputmode="numeric" placeholder="Blank for an exhibition"></label>
       <label>SUBTITLE <input name="subtitle" type="text" maxlength="40" placeholder="A New Dawn"></label>
+      <label>DATE <input name="date" type="date"></label>
       <fieldset>
         <legend>PLAYERS</legend>
         <div class="grid2">
@@ -143,6 +144,7 @@
       <label class="toggle"><input name="wackChip" type="checkbox"><span class="sw" aria-hidden="true"></span> WACK CHIP</label>
       <label class="toggle"><input name="lowWins" type="checkbox"><span class="sw" aria-hidden="true"></span> LOWEST TOTAL WINS</label>
       <label>SCORING PIN <input name="pin" type="text" inputmode="numeric" maxlength="12" autocomplete="off" placeholder="Leave blank to keep"></label>
+      <label class="toggle"><input name="exhibition" type="checkbox"><span class="sw" aria-hidden="true"></span> EXHIBITION (NOT IN ALL-TIME STATS)</label>
       <label class="toggle"><input name="complete" type="checkbox"><span class="sw" aria-hidden="true"></span> COMPLETE (LOCK)</label>
     </div>
     <p class="err" id="adminErr" role="alert"></p>
