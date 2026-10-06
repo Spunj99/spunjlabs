@@ -96,6 +96,26 @@
   </div>
 </dialog>
 
+<!-- Wheel: random 1v1 draw -->
+<dialog class="sheet" id="wheelSheet" aria-labelledby="wheelTitle">
+  <div class="sheet-in">
+    <div class="sheet-head">
+      <h2 id="wheelTitle">1V1 DRAW</h2>
+      <button class="x" type="button" data-close aria-label="Close">&times;</button>
+    </div>
+    <div class="wheel-wrap">
+      <span class="wheel-ptr" aria-hidden="true"></span>
+      <svg id="wheel" viewBox="-106 -106 212 212" role="img" aria-label="Wheel of players"><g id="wheelRot"></g><circle class="wheel-hub" r="13"/></svg>
+    </div>
+    <p class="wheel-pick" id="wheelPick" aria-live="polite"></p>
+    <ol class="draw" id="wheelDraw"></ol>
+    <div class="sheet-actions">
+      <button class="btn" id="wheelReset" type="button">&#8634; RESET</button>
+      <button class="btn primary" id="wheelSpin" type="button">SPIN &#9654;</button>
+    </div>
+  </div>
+</dialog>
+
 <!-- PIN -->
 <dialog class="sheet small" id="pinSheet" aria-labelledby="pinTitle">
   <form class="sheet-in" id="pinForm" method="dialog">

@@ -44,6 +44,7 @@ const ARROW = ['....X.....', '...XX.....', '..XXX.....', '.XXXXXXXXX', 'XXXXXXXX
 // Up = oldest game first, down = newest first.
 const SORT_UP = ['...X...', '..XXX..', '.XXXXX.', 'XXXXXXX'];
 const SORT_DOWN = [...SORT_UP].reverse();
+const WHEEL = ['..XXXXX..', '.X..X..X.', 'X.X.X.X.X', 'X..XXX..X', 'XXXXXXXXX', 'X..XXX..X', 'X.X.X.X.X', '.X..X..X.', '..XXXXX..'];
 const placeIcon = i => i < 3 ? px(TROPHY, ['gold', 'silver', 'bronze'][i]) : px(SKULL, 'wood');
 const chipIcon = () => `<svg class="px chip" viewBox="0 0 16 16" aria-hidden="true" shape-rendering="crispEdges"><circle cx="8" cy="8" r="7.5" fill="#e8642a"/><circle cx="8" cy="8" r="5.2" fill="#7c2d10"/>${[0, 1, 2, 3, 4, 5, 6, 7].map(i => { const a = i * Math.PI / 4; return `<rect x="${(8 + 6.3 * Math.cos(a) - .6).toFixed(1)}" y="${(8 + 6.3 * Math.sin(a) - .6).toFixed(1)}" width="1.2" height="1.2" fill="#7c2d10"/>`; }).join('')}<rect x="5" y="6" width="1.2" height="4" fill="#fff"/><rect x="9.8" y="6" width="1.2" height="4" fill="#fff"/><rect x="6.2" y="8.6" width="1.2" height="1.4" fill="#fff"/><rect x="8.6" y="8.6" width="1.2" height="1.4" fill="#fff"/><rect x="7.4" y="7.4" width="1.2" height="1.4" fill="#fff"/></svg>`;
 
@@ -228,6 +229,7 @@ function renderTournament() {
       ${live() && pickers.length ? `<span class="pill next"><span class="blink">&#9654;</span>${pickers.map(p => `<b style="color:${p.color}">${esc(p.name)}</b>`).join(' OR ')} ${pickers.length > 1 ? 'PICK' : 'PICKS'} NEXT</span>` : ''}
       ${chipP ? `<span class="pill wack" title="Wack Chip: ${esc(chipP.name)} gets +${st.chip.next} after the next game">${chipIcon()}<span>WACK <b style="color:${chipP.color}">${esc(chipP.name)}</b> +${st.chip.next}</span></span>` : ''}
       ${store.demo ? `<span class="pill demo">DEMO MODE</span>` : ''}
+      ${live() ? `<button class="pill spin" id="wheelBtn" type="button" aria-label="Spin the wheel for a 1v1 draw">${px(WHEEL)} SPIN</button>` : ''}
     </div>
     <div class="tbl" role="table" aria-label="Results">
       <div class="row head" role="row"><div><button class="sort" id="sortBtn" type="button" aria-label="Order: ${newestFirst ? 'newest' : 'oldest'} first. Tap to flip">GAME ${px(newestFirst ? SORT_DOWN : SORT_UP)}</button></div>${PLACE.map((p, i) => `<div>${placeIcon(i)}${i === 3 ? p : ''}</div>`).join('')}</div>
@@ -250,6 +252,7 @@ function pulseTab() {
 }
 
 $('#view').addEventListener('click', async e => {
+  if (e.target.closest('#wheelBtn')) return openWheel();
   if (e.target.closest('#sortBtn')) {
     newestFirst = !newestFirst;
     try { localStorage.setItem('rvgd-newest-first', newestFirst ? '1' : '0'); } catch {}
@@ -288,6 +291,78 @@ document.querySelectorAll('dialog.sheet').forEach(d => {
   d.addEventListener('cancel', e => { e.preventDefault(); closeSheet(d); });
   d.addEventListener('click', e => { if (e.target === d || e.target.closest('[data-close]')) closeSheet(d); });
 });
+
+// ---------- wheel: random 1v1 draw ----------
+// Each spin picks a player and takes them off the wheel; picks pair up in order
+// (1st v 2nd, 3rd v 4th), and the last two left are paired automatically.
+const W = { left: [], picks: [], rot: 0, busy: false, landed: -1 };
+const rnd = () => crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32;
+const wheelDone = () => W.left.length < 2 || (W.left.length === 2 && W.picks.length % 2 === 0);
+
+function openWheel() { resetWheel(); openSheet($('#wheelSheet')); }
+function resetWheel() {
+  if (W.busy) return;
+  Object.assign(W, { left: players(), picks: [], rot: 0, landed: -1 });
+  drawWheel();
+  renderDraw();
+}
+function drawWheel() {
+  const g = $('#wheelRot'), n = W.left.length, seg = 360 / n;
+  // Angles run clockwise from the pointer at the top.
+  const pt = (deg, r) => { const a = deg * Math.PI / 180; return `${(r * Math.sin(a)).toFixed(2)} ${(-r * Math.cos(a)).toFixed(2)}`; };
+  g.innerHTML = W.left.map((p, i) => {
+    const a0 = i * seg, mid = a0 + seg / 2;
+    const path = n === 1 ? `<circle class="wheel-seg" r="100" fill="${p.color}"/>`
+      : `<path class="wheel-seg" d="M0 0 L${pt(a0, 100)} A100 100 0 ${seg > 180 ? 1 : 0} 1 ${pt(a0 + seg, 100)} Z" fill="${p.color}"/>`;
+    const fs = Math.min(14, 76 / Math.max(p.name.length, 1));
+    return `<g class="${i === W.landed ? 'win' : ''}">${path}<text class="wheel-txt" font-size="${fs.toFixed(1)}" text-anchor="middle" dominant-baseline="central" transform="rotate(${mid - 90}) translate(58 0)">${esc(p.name)}</text></g>`;
+  }).join('') + '<circle class="wheel-rim" r="101"/>';
+  g.classList.toggle('landed', W.landed >= 0);
+  g.style.transition = 'none';
+  g.style.transform = `rotate(${W.rot}deg)`;
+}
+function renderDraw() {
+  const order = wheelDone() ? [...W.picks, ...W.left] : W.picks;
+  const name = p => p ? `<b style="color:${p.color}">${esc(p.name)}</b>` : '<b class="dim">?</b>';
+  const matches = [];
+  for (let i = 0; i < order.length; i += 2) matches.push(order.slice(i, i + 2));
+  $('#wheelDraw').innerHTML = matches.map((m, i) => `<li><small>MATCH ${i + 1}</small>${name(m[0])}<span class="v">VS</span>${name(m[1])}</li>`).join('');
+  const last = W.picks[W.picks.length - 1];
+  $('#wheelPick').innerHTML = last ? `<span class="blink">&#9654;</span> ${name(last)}` : 'SPIN FOR THE FIRST PLAYER';
+  $('#wheelSpin').disabled = wheelDone();
+  $('#wheelSpin').innerHTML = wheelDone() ? 'ALL DRAWN' : 'SPIN &#9654;';
+}
+function spinWheel() {
+  if (W.busy || wheelDone()) return;
+  W.busy = true;
+  if (W.landed >= 0) { W.left.splice(W.landed, 1); W.landed = -1; W.rot = 0; drawWheel(); }
+  const g = $('#wheelRot'), n = W.left.length, seg = 360 / n, i = Math.floor(rnd() * n);
+  // Land somewhere inside segment i (not on an edge), after five full turns.
+  const target = (i + 0.15 + rnd() * 0.7) * seg;
+  W.rot += 360 * 5 + (((-target - W.rot) % 360) + 360) % 360;
+  const dur = matchMedia('(prefers-reduced-motion: reduce)').matches ? 300 : 4200;
+  void g.getBoundingClientRect();
+  g.style.transition = `transform ${dur}ms cubic-bezier(.12,.8,.18,1)`;
+  g.style.transform = `rotate(${W.rot}deg)`;
+  $('#wheelPick').innerHTML = '<span class="blink">SPINNING...</span>';
+  $('#wheelSpin').disabled = true;
+  setTimeout(() => {
+    W.busy = false;
+    W.picks.push(W.left[i]);
+    W.landed = i;
+    g.querySelectorAll(':scope > g').forEach((s, k) => s.classList.toggle('win', k === i));
+    g.classList.add('landed');
+    // Keep the drawn player on the wheel until the next spin, but count them as picked.
+    const rest = W.left.filter((_, k) => k !== i);
+    const done = rest.length < 2 || (rest.length === 2 && W.picks.length % 2 === 0);
+    if (done) { W.left = rest; W.landed = -1; }
+    renderDraw();
+    navigator.vibrate?.([20, 60, 20]);
+  }, dur + 50);
+}
+$('#wheelSpin').onclick = spinWheel;
+$('#wheel').onclick = spinWheel;
+$('#wheelReset').onclick = resetWheel;
 
 // ---------- PIN ----------
 function askPin(kind) {
