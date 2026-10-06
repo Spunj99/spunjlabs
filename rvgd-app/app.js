@@ -5,10 +5,10 @@ import { computeStandings, DEFAULT_SCORING, selfTest } from './score.js';
 // These are public identifiers, not secrets. Security comes from firestore.rules.
 // Leave apiKey empty to run in local demo mode.
 const FIREBASE_CONFIG = {
-  apiKey: '',
-  authDomain: '',
-  projectId: '',
-  appId: '',
+  apiKey: 'AIzaSyBZcIXpWFScQtMBHub-tpNtXeDPVSaPA_g',
+  authDomain: 'rvgd-101026.firebaseapp.com',
+  projectId: 'rvgd-101026',
+  appId: '1:964478178587:web:2c3e38372733a952592fbe',
 };
 // Free key from https://rawg.io/apidocs. Without it, search only covers games already played.
 const RAWG_KEY = '';
