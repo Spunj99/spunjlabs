@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>RVGD | SpunjLabs</title>
+<meta name="description" content="Retro Video Games Day scoreboard.">
+<meta name="robots" content="noindex">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0a0a12">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="RVGD">
+<link rel="manifest" href="rvgd-app/manifest.webmanifest">
+<link rel="icon" href="rvgd-app/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="rvgd-app/icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap">
+<link rel="stylesheet" href="rvgd-app/app.css">
+<script type="module" src="rvgd-app/app.js"></script>
+</head>
+<body>
+<div class="crt" aria-hidden="true"></div>
+
+<header class="bar">
+  <a class="bar-btn" id="homeBtn" href="rvgd" aria-label="All tournaments" hidden></a>
+  <div class="bar-title" id="barTitle">
+    <span class="t1">RVGD</span>
+  </div>
+  <button class="bar-btn" id="lockBtn" type="button" aria-label="Unlock scoring" hidden></button>
+  <button class="trophy-tab" id="standingsBtn" type="button" aria-label="Standings" hidden></button>
+</header>
+
+<main id="view" class="view"><p class="loading">LOADING<span class="blink">_</span></p></main>
+
+<button class="add-btn" id="addBtn" type="button" hidden><span>+</span> ADD GAME</button>
+
+<!-- Add / edit game -->
+<dialog class="sheet" id="gameSheet" aria-labelledby="gameSheetTitle">
+  <div class="sheet-in">
+    <div class="sheet-head">
+      <h2 id="gameSheetTitle">SELECT GAME</h2>
+      <button class="x" type="button" data-close aria-label="Close">&times;</button>
+    </div>
+    <section class="step" id="stepSearch">
+      <label class="search">
+        <span class="prompt" aria-hidden="true">&#9654;</span>
+        <input id="searchInput" type="search" placeholder="TYPE TO SEARCH" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" aria-label="Search games">
+      </label>
+      <ul class="results" id="results" role="listbox" aria-label="Games"></ul>
+      <p class="rawg-credit">Game data from <a href="https://rawg.io" target="_blank" rel="noopener">RAWG</a></p>
+    </section>
+    <section class="step" id="stepPlace" hidden>
+      <div class="picked" id="picked"></div>
+      <ol class="slots" id="slots"></ol>
+      <p class="ask" id="ask"></p>
+      <div class="pads" id="pads"></div>
+      <div class="sheet-actions">
+        <button class="btn danger" id="deleteBtn" type="button" hidden>DELETE</button>
+        <button class="btn primary" id="saveBtn" type="button" disabled>SAVE &#9654;</button>
+      </div>
+    </section>
+  </div>
+</dialog>
+
+<!-- Standings -->
+<dialog class="sheet" id="standingsSheet" aria-labelledby="standingsTitle">
+  <div class="sheet-in">
+    <div class="sheet-head">
+      <h2 id="standingsTitle">STANDINGS</h2>
+      <button class="x" type="button" data-close aria-label="Close">&times;</button>
+    </div>
+    <div id="standingsBody"></div>
+    <div class="sheet-actions">
+      <button class="btn" id="adminBtn" type="button">SETTINGS</button>
+      <button class="btn primary" id="copyBtn" type="button">COPY AS TEXT</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- PIN -->
+<dialog class="sheet small" id="pinSheet" aria-labelledby="pinTitle">
+  <form class="sheet-in" id="pinForm" method="dialog">
+    <div class="sheet-head">
+      <h2 id="pinTitle">INSERT PIN</h2>
+      <button class="x" type="button" data-close aria-label="Close">&times;</button>
+    </div>
+    <p class="hint" id="pinHint">Enter the tournament PIN to start scoring on this device.</p>
+    <input class="pin" id="pinInput" type="password" inputmode="numeric" autocomplete="off" aria-label="PIN" required>
+    <p class="err" id="pinErr" role="alert"></p>
+    <div class="sheet-actions">
+      <button class="btn primary" type="submit">CONTINUE &#9654;</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Tournament settings (admin) -->
+<dialog class="sheet" id="adminSheet" aria-labelledby="adminTitle">
+  <form class="sheet-in" id="adminForm">
+    <div class="sheet-head">
+      <h2 id="adminTitle">TOURNAMENT</h2>
+      <button class="x" type="button" data-close aria-label="Close">&times;</button>
+    </div>
+    <div class="form">
+      <label>NUMBER <input name="number" type="number" min="1" max="999" inputmode="numeric" required></label>
+      <label>SUBTITLE <input name="subtitle" type="text" maxlength="40" placeholder="A New Dawn"></label>
+      <fieldset>
+        <legend>PLAYERS</legend>
+        <div class="grid2">
+          <input name="p1" type="text" maxlength="12" placeholder="Player 1" aria-label="Player 1" required>
+          <input name="p2" type="text" maxlength="12" placeholder="Player 2" aria-label="Player 2" required>
+          <input name="p3" type="text" maxlength="12" placeholder="Player 3" aria-label="Player 3" required>
+          <input name="p4" type="text" maxlength="12" placeholder="Player 4" aria-label="Player 4" required>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>POINTS 1ST&ndash;4TH</legend>
+        <div class="grid4">
+          <input name="s1" type="number" inputmode="numeric" aria-label="Points for 1st" required>
+          <input name="s2" type="number" inputmode="numeric" aria-label="Points for 2nd" required>
+          <input name="s3" type="number" inputmode="numeric" aria-label="Points for 3rd" required>
+          <input name="s4" type="number" inputmode="numeric" aria-label="Points for 4th" required>
+        </div>
+      </fieldset>
+      <label class="toggle"><input name="wackChip" type="checkbox"><span class="sw" aria-hidden="true"></span> WACK CHIP</label>
+      <label>SCORING PIN <input name="pin" type="text" inputmode="numeric" maxlength="12" autocomplete="off" placeholder="Leave blank to keep"></label>
+      <label class="toggle"><input name="complete" type="checkbox"><span class="sw" aria-hidden="true"></span> COMPLETE (LOCK)</label>
+    </div>
+    <p class="err" id="adminErr" role="alert"></p>
+    <div class="sheet-actions">
+      <button class="btn primary" type="submit">SAVE &#9654;</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

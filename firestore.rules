@@ -1,0 +1,59 @@
+rules_version = '2';
+
+// RVGD scoreboard rules. Paste into Firebase console > Firestore > Rules.
+// Reads are public. Writes need a PIN, checked against docs clients can never read:
+//   secrets/admin  { pin: "..." }   create by hand in the console
+//   secrets/{n}    { pin: "..." }   written by the admin when creating tournament n
+// Entering a PIN writes editors/{n}/members/{uid} (or admins/{uid}); that write only
+// succeeds if the PIN matches, and its existence is what unlocks everything else.
+service cloud.firestore {
+  match /databases/{db}/documents {
+    function signedIn() { return request.auth != null; }
+    function isAdmin() { return signedIn() && exists(/databases/$(db)/documents/admins/$(request.auth.uid)); }
+    function isEditor(t) { return signedIn() && exists(/databases/$(db)/documents/editors/$(t)/members/$(request.auth.uid)); }
+    function isLive(t) { return get(/databases/$(db)/documents/tournaments/$(t)).data.status == 'live'; }
+    function canScore(t) { return isAdmin() || (isEditor(t) && isLive(t)); }
+    function validGame() {
+      let d = request.resource.data;
+      return d.name is string && d.name.size() > 0 && d.name.size() <= 200
+        && d.placings is list && d.placings.size() == 4
+        && d.order is number;
+    }
+
+    match /tournaments/{t} {
+      allow read: if true;
+      allow write: if isAdmin();
+
+      match /games/{g} {
+        allow read: if true;
+        allow create, update: if canScore(t) && validGame();
+        allow delete: if canScore(t);
+      }
+    }
+
+    match /pool/{id} {
+      allow read: if true;
+      allow create, update: if signedIn()
+        && request.resource.data.name is string
+        && request.resource.data.t is string
+        && (isAdmin() || isEditor(request.resource.data.t));
+    }
+
+    match /secrets/{id} {
+      allow read: if false;
+      allow write: if id != 'admin' && isAdmin();
+    }
+
+    match /editors/{t}/members/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.pin == get(/databases/$(db)/documents/secrets/$(t)).data.pin;
+    }
+
+    match /admins/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.pin == get(/databases/$(db)/documents/secrets/admin).data.pin;
+    }
+  }
+}
