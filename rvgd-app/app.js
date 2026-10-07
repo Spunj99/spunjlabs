@@ -298,7 +298,11 @@ $('#lockBtn').onclick = async () => {
   if (S.editable) toast('SCORING UNLOCKED ON THIS DEVICE');
   else if (await requireEditor()) toast('UNLOCKED! READY PLAYER ONE');
 };
-$('#standingsBtn').onclick = () => { renderStandings(); openSheet($('#standingsSheet')); };
+$('#standingsBtn').onclick = () => {
+  renderStandings();
+  openSheet($('#standingsSheet'));
+  if ($('#punditBtn')) refreshPunditUses(S.t);
+};
 $('#statsBtn').onclick = () => { if (!S.t) return openGlobal(); renderStats(); openSheet($('#statsSheet')); };
 
 // ---------- sheets ----------
@@ -896,17 +900,27 @@ function punditWhen() {
 // call back to earlier ones and avoid repeating jokes. A reroll (ANOTHER with no new games)
 // replaces the latest verdict rather than counting as a new update.
 const punditKey = t => `rvgd-pundit-${t}`;
-// Verdicts per tournament on this phone (every successful ask, rerolls included), to ration the
-// Worker's free daily AI allowance. At the cap the last verdict can still be read and played.
+// Verdicts per tournament (every successful ask, rerolls included), counted by the Worker in
+// Cloudflare KV so every phone shares the limit; it refuses once a tournament reaches the cap.
+// Cached here, refreshed when the standings open and after each ask. At the cap the last
+// verdict can still be read and played.
 const PUNDIT_MAX = 20;
-const usesKey = t => `rvgd-pundit-uses-${t}`;
-function punditUses(t) { try { return +localStorage.getItem(usesKey(t)) || 0; } catch { return 0; } }
-function countPunditUse(t) {
-  try { localStorage.setItem(usesKey(t), punditUses(t) + 1); } catch {}
-  const b = $('#punditBtn .uses');
-  if (b && S.t === t) b.textContent = `${punditUses(t)}/${PUNDIT_MAX}`;
-}
+const punditCount = {};
+const punditUses = t => punditCount[t] ?? 0;
 const punditSpent = () => punditUses(S.t) >= PUNDIT_MAX;
+function setPunditUses(t, n) {
+  if (!Number.isFinite(n)) return;
+  punditCount[t] = n;
+  const b = $('#punditBtn .uses');
+  if (b && S.t === t) b.textContent = `${n}/${PUNDIT_MAX}`;
+  if ($('#punditSheet').open && S.t === t && !punditBusy) punditControls();
+}
+async function refreshPunditUses(t) {
+  try {
+    const r = await fetch(`${PUNDIT_URL}/uses?t=${encodeURIComponent(t)}`);
+    if (r.ok) setPunditUses(t, +(await r.json()).uses);
+  } catch {}
+}
 function punditHistory(t) {
   try { return JSON.parse(localStorage.getItem(punditKey(t))) || []; } catch { return []; }
 }
@@ -949,24 +963,26 @@ async function askPundit() {
   punditWhen();
   $('#punditText').innerHTML = `<span class="blink">THE PUNDIT IS THINKING...</span>`;
   ['#punditSay', '#punditCopy', '#punditAgain'].forEach(s => $(s).disabled = true);
-  let text = '', outOfTokens = false;
+  let text = '', error = '';
   try {
-    const r = await fetch(PUNDIT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ summary: punditSummary() }) });
-    // 429 = the Worker's free daily AI allowance is used up (resets at midnight UTC).
-    outOfTokens = r.status === 429;
-    if (!r.ok) throw new Error(r.status);
-    text = String((await r.json()).text || '').trim();
-  } catch {}
+    const r = await fetch(PUNDIT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ summary: punditSummary(), t: mine.t }) });
+    // 429 = refused: error 'out-of-tokens' (the free daily AI allowance is used up, resets at
+    // midnight UTC) or 'limit' (this tournament has had all its verdicts).
+    const j = await r.json().catch(() => ({}));
+    setPunditUses(mine.t, +j.uses);
+    error = j.error || (r.ok ? '' : 'failed');
+    text = r.ok ? String(j.text || '').trim() : '';
+  } catch { error = 'failed'; }
   punditBusy = false;
   if (punditFor !== mine) return; // moved to another tournament meanwhile
   punditText = text;
   if (text) {
     $('#punditText').textContent = text;
     savePundit(mine.t, mine.games, text);
-    countPunditUse(mine.t);
   } else {
     punditFor = null;
-    $('#punditText').innerHTML = `<span class="err">${outOfTokens ? 'OUT OF TOKENS.' : 'THE PUNDIT HAS LOST HIS VOICE. TRY AGAIN IN A MINUTE.'}</span>`;
+    $('#punditText').innerHTML = `<span class="err">${error === 'out-of-tokens' ? 'OUT OF TOKENS.'
+      : error === 'limit' ? `ALL ${PUNDIT_MAX} VERDICTS USED.` : 'THE PUNDIT HAS LOST HIS VOICE. TRY AGAIN IN A MINUTE.'}</span>`;
   }
   punditControls();
 }
@@ -1056,6 +1072,7 @@ $('#standingsBody').addEventListener('click', e => {
   if (!e.target.closest('#punditBtn')) return;
   $('#punditTitle').innerHTML = `${px(MIC)} PUNDIT`;
   openSheet($('#punditSheet'));
+  refreshPunditUses(S.t);
   if (punditFor?.t === S.t && punditBusy) return punditWhen();
   if (punditFor?.t === S.t && punditText) return punditControls();
   // After a reload (or a failed ask), bring back this phone's latest verdict rather than asking again.
