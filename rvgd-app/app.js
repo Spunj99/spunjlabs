@@ -12,6 +12,10 @@ const FIREBASE_CONFIG = {
   appId: '1:964478178587:web:2c3e38372733a952592fbe',
 };
 
+// AI pundit: a Cloudflare Worker (Workers AI, free tier) that turns the tournament summary into a
+// paragraph of commentary. It only answers requests from https://spunjlabs.com.
+const PUNDIT_URL = 'https://rvgd-pundit.spunjlabs.workers.dev';
+
 const COLORS = ['#ffd43a', '#70ceff', '#ff5c8a', '#6dff9b'];
 const PLACE = ['1ST', '2ND', '3RD', '4TH'];
 const $ = s => document.querySelector(s);
@@ -46,6 +50,7 @@ const SORT_UP = ['...X...', '..XXX..', '.XXXXX.', 'XXXXXXX'];
 const SORT_DOWN = [...SORT_UP].reverse();
 const CAMERA = ['...XXX....', 'XXXXXXXXXX', 'X........X', 'X...XX...X', 'X..X..X..X', 'X..X..X..X', 'X...XX...X', 'X........X', 'XXXXXXXXXX'];
 const PAD = ['..XXXXXXXXX..', '.XXXXXXXXXXX.', 'XXX.XXXXX.XXX', 'XX...XXX.X.XX', 'XXX.XXXXX.XXX', 'XXXXXXXXXXXXX', 'XXXX.....XXXX', '.XX.......XX.'];
+const MIC = ['..XXX..', '.XXXXX.', '.XXXXX.', '.XXXXX.', 'X.XXX.X', 'X.....X', '.XXXXX.', '...X...', '..XXX..'];
 const WHEEL = ['..XXXXX..', '.X..X..X.', 'X.X.X.X.X', 'X..XXX..X', 'XXXXXXXXX', 'X..XXX..X', 'X.X.X.X.X', '.X..X..X.', '..XXXXX..'];
 const placeIcon = i => i < 3 ? px(TROPHY, ['gold', 'silver', 'bronze'][i]) : px(SKULL, 'wood');
 const chipIcon = () => `<svg class="px chip" viewBox="0 0 16 16" aria-hidden="true" shape-rendering="crispEdges"><circle cx="8" cy="8" r="7.5" fill="#e8642a"/><circle cx="8" cy="8" r="5.2" fill="#7c2d10"/>${[0, 1, 2, 3, 4, 5, 6, 7].map(i => { const a = i * Math.PI / 4; return `<rect x="${(8 + 6.3 * Math.cos(a) - .6).toFixed(1)}" y="${(8 + 6.3 * Math.sin(a) - .6).toFixed(1)}" width="1.2" height="1.2" fill="#7c2d10"/>`; }).join('')}<rect x="5" y="6" width="1.2" height="4" fill="#fff"/><rect x="9.8" y="6" width="1.2" height="4" fill="#fff"/><rect x="6.2" y="8.6" width="1.2" height="1.4" fill="#fff"/><rect x="8.6" y="8.6" width="1.2" height="1.4" fill="#fff"/><rect x="7.4" y="7.4" width="1.2" height="1.4" fill="#fff"/></svg>`;
@@ -833,7 +838,8 @@ function renderStandings() {
       </li>`;
     }).join('')}</ol>
     <p class="sub">GAMES <b>${S.games.length}</b> &middot; POINTS <b>${sc.points.join('/')}</b>${sc.lowWins ? ' &middot; <b>LOWEST WINS</b>' : ''}
-    ${sc.wackChip ? `<br>WACK CHIP <b>ON</b>${chipP ? ` &middot; HELD BY <b style="color:${chipP.color}">${esc(chipP.name)}</b> (+${st.chip.next} NEXT GAME)` : ''}` : ''}</p>`;
+    ${sc.wackChip ? `<br>WACK CHIP <b>ON</b>${chipP ? ` &middot; HELD BY <b style="color:${chipP.color}">${esc(chipP.name)}</b> (+${st.chip.next} NEXT GAME)` : ''}` : ''}</p>
+    ${live() && S.games.length && (trusted || S.editable) ? `<button class="btn pundit-btn" id="punditBtn" type="button">${px(MIC)} PUNDIT'S VERDICT</button>` : ''}`;
   $('#adminBtn').hidden = false;
 }
 
@@ -877,6 +883,102 @@ $('#copyBtn').onclick = async () => {
   }
   toast('COPIED! PASTE IT ANYWHERE');
 };
+
+// ---------- AI pundit ----------
+let punditText = '';
+function punditSummary() {
+  const last = S.games[S.games.length - 1];
+  const lastRank = last ? Math.max(...last.placings.map((_, i) => placeOf(last, i))) : -1;
+  const pickers = last ? last.placings.filter((_, i) => placeOf(last, i) === lastRank).map(id => pById(id)?.name) : [];
+  const tbl = S.st.table;
+  return [exportText(), '',
+    `Last game: ${last.name}, where ${pickers.join(' and ')} came last, so ${pickers.join(' or ')} ${pickers.length > 1 ? 'pick' : 'picks'} the next game.`,
+    // Ready-made gaps: the model is unreliable at subtracting scores itself.
+    leaderLine(tbl),
+    `Gap from 1st to last overall: ${plural(Math.abs(tbl[0].points - tbl[tbl.length - 1].points), 'point')}.`].join('\n');
+}
+function leaderLine(tbl) {
+  const name = r => pById(r.id)?.name;
+  const top = tbl.filter(r => r.pos === 0), next = tbl.find(r => r.pos > 0);
+  if (top.length > 1) return `Joint leaders: ${top.map(name).join(' and ')} on ${top[0].points} points.`;
+  return `Leader: ${name(top[0])}, ${plural(Math.abs(top[0].points - next.points), 'point')} clear of ${tbl.filter(r => r.pos === next.pos).map(name).join(' and ')}.`;
+}
+async function askPundit() {
+  stopPundit();
+  punditText = '';
+  $('#punditText').innerHTML = `<span class="blink">THE PUNDIT IS THINKING...</span>`;
+  ['#punditSay', '#punditCopy', '#punditAgain'].forEach(s => $(s).disabled = true);
+  try {
+    const r = await fetch(PUNDIT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ summary: punditSummary() }) });
+    if (!r.ok) throw new Error(r.status);
+    punditText = String((await r.json()).text || '').trim();
+    if (!punditText) throw new Error('empty');
+    $('#punditText').textContent = punditText;
+  } catch {
+    $('#punditText').innerHTML = `<span class="err">THE PUNDIT HAS LOST HIS VOICE. TRY AGAIN IN A MINUTE.</span>`;
+  }
+  $('#punditAgain').disabled = false;
+  $('#punditSay').disabled = $('#punditCopy').disabled = !punditText;
+  $('#punditSay').innerHTML = '&#9654; LISTEN';
+}
+// Read it out with the phone's own voice, British if it has one.
+function pickVoice() {
+  const vs = window.speechSynthesis.getVoices();
+  return vs.find(v => v.lang === 'en-GB' && /daniel|male|george|arthur|oliver/i.test(v.name)) || vs.find(v => v.lang === 'en-GB') || vs.find(v => v.lang.startsWith('en')) || null;
+}
+window.speechSynthesis?.getVoices();
+// Voiceover: the Worker's /speak (Deepgram Aura via Workers AI). The <audio> element fetches
+// it itself, so play() runs inside the tap (iOS needs that). Falls back to the phone's voice.
+let punditAudio = null;
+const sayLabel = () => { $('#punditSay').innerHTML = '&#9654; LISTEN'; };
+function stopPundit() {
+  if (punditAudio) { punditAudio.pause(); punditAudio = null; }
+  window.speechSynthesis?.cancel();
+  sayLabel();
+}
+// The voice uses most of the Worker's free daily allowance, so each paragraph is only voiced
+// once: LISTEN again replays the same audio (kept until ANOTHER or closing the sheet).
+let spoken = null; // { text, audio }
+$('#punditSay').onclick = () => {
+  if (punditAudio || window.speechSynthesis?.speaking) return stopPundit();
+  if (spoken?.text !== punditText) {
+    const a = new Audio();
+    a.crossOrigin = 'anonymous'; // sends the Origin header the Worker checks
+    a.preload = 'auto';
+    a.src = `${PUNDIT_URL}/speak?text=${encodeURIComponent(punditText)}`;
+    // The TTS model has no speed setting; play it a touch slower (browsers keep the pitch).
+    a.defaultPlaybackRate = a.playbackRate = 0.9;
+    a.onended = () => { punditAudio = null; sayLabel(); };
+    a.onerror = () => { spoken = null; if (punditAudio === a) { punditAudio = null; speakLocally(); } };
+    spoken = { text: punditText, audio: a };
+  }
+  const a = punditAudio = spoken.audio;
+  a.currentTime = 0;
+  $('#punditSay').innerHTML = '&#9632; STOP';
+  a.play().catch(() => a.onerror());
+};
+function speakLocally() {
+  const synth = window.speechSynthesis;
+  if (!synth) { sayLabel(); return toast('NO VOICE ON THIS DEVICE', true); }
+  const u = new SpeechSynthesisUtterance(punditText);
+  const v = pickVoice();
+  if (v) { u.voice = v; u.lang = v.lang; }
+  u.rate = 0.95; u.pitch = 0.9;
+  u.onend = u.onerror = sayLabel;
+  $('#punditSay').innerHTML = '&#9632; STOP';
+  synth.speak(u);
+}
+$('#punditAgain').onclick = askPundit;
+$('#punditCopy').onclick = async () => {
+  try { await navigator.clipboard.writeText(punditText); toast('COPIED!'); } catch { toast('COULD NOT COPY', true); }
+};
+$('#punditSheet').addEventListener('close', () => { stopPundit(); spoken = null; });
+$('#standingsBody').addEventListener('click', e => {
+  if (!e.target.closest('#punditBtn')) return;
+  $('#punditTitle').innerHTML = `${px(MIC)} PUNDIT`;
+  openSheet($('#punditSheet'));
+  askPundit();
+});
 
 // ---------- stats ----------
 const swatch = p => `<span class="pn"><i style="background:${p.color}"></i>${esc(p.name)}</span>`;

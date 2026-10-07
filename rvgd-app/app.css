@@ -454,3 +454,12 @@ a.tile{color:inherit;text-decoration:none}
 #gList .tx b{white-space:normal;font-size:19px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 #gList .tx small{font-size:15px}
 #gList li.note{grid-column:1/-1}
+
+/* AI pundit */
+.pundit-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;margin-top:14px;border-color:#7a3414;color:#ffb28c}
+.pundit-btn .px{font-size:16px}
+.bubble{position:relative;margin:4px 0 14px;padding:16px 16px 18px;border:3px solid var(--line2);background:var(--panel);font-size:23px;line-height:1.2;min-height:120px;box-shadow:4px 4px 0 #000}
+.bubble::after{content:"";position:absolute;left:28px;bottom:-15px;border:12px solid transparent;border-top-color:var(--line2);border-bottom:0}
+.bubble .blink{font:400 10px/1.8 var(--pixel);color:var(--yellow)}
+.bubble .err{font:400 9px/1.8 var(--pixel);color:var(--pink)}
+#punditSheet .sheet-actions .btn{font-size:9px;padding:8px 6px}

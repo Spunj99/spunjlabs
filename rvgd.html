@@ -119,6 +119,22 @@
   </div>
 </dialog>
 
+<!-- AI pundit commentary -->
+<dialog class="sheet" id="punditSheet" aria-labelledby="punditTitle">
+  <div class="sheet-in">
+    <div class="sheet-head">
+      <h2 id="punditTitle">PUNDIT</h2>
+      <button class="x" type="button" data-close aria-label="Close">&times;</button>
+    </div>
+    <div class="bubble" id="punditText" aria-live="polite"></div>
+    <div class="sheet-actions">
+      <button class="btn" id="punditCopy" type="button">COPY</button>
+      <button class="btn" id="punditAgain" type="button">&#8634; ANOTHER</button>
+      <button class="btn primary" id="punditSay" type="button">&#9654; LISTEN</button>
+    </div>
+  </div>
+</dialog>
+
 <!-- Game finder: search played games, game cards, player views -->
 <dialog class="sheet tall" id="gamesSheet" aria-labelledby="gamesTitle">
   <div class="sheet-in">
