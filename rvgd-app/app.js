@@ -885,7 +885,32 @@ $('#copyBtn').onclick = async () => {
 };
 
 // ---------- AI pundit ----------
-let punditText = '';
+// The verdict is kept (across closing and reopening the sheet) until someone presses
+// ANOTHER; only a different tournament starts afresh. punditFor = { t, games } it was written for.
+let punditText = '', punditFor = null, punditBusy = false;
+function punditWhen() {
+  const n = punditFor?.games, since = S.games.length - n;
+  $('#punditWhen').innerHTML = punditText && n ? `WRITTEN AFTER GAME ${n}${since > 0 ? ` &middot; ${plural(since, 'GAME')} AGO, PRESS ANOTHER FOR AN UPDATE` : ''}` : '';
+}
+// This phone's verdicts for a tournament (localStorage), so the pundit can number its updates,
+// call back to earlier ones and avoid repeating jokes. A reroll (ANOTHER with no new games)
+// replaces the latest verdict rather than counting as a new update.
+const punditKey = t => `rvgd-pundit-${t}`;
+function punditHistory(t) {
+  try { return JSON.parse(localStorage.getItem(punditKey(t))) || []; } catch { return []; }
+}
+function savePundit(t, games, text) {
+  const h = punditHistory(t);
+  if (h.length && h[h.length - 1].games === games) h.pop();
+  h.push({ games, text });
+  try { localStorage.setItem(punditKey(t), JSON.stringify(h.slice(-10))); } catch {}
+}
+function historyLines(t) {
+  const h = punditHistory(t).filter(v => v.games < S.games.length);
+  if (!h.length) return ['', 'PUNDIT HISTORY: This is your first update of the day.'];
+  return ['', `PUNDIT HISTORY: This is your update number ${h.length + 1} of the day. Your earlier updates (oldest first):`,
+    ...h.slice(-3).map(v => `- After game ${v.games}: "${v.text}"`)];
+}
 function punditSummary() {
   const last = S.games[S.games.length - 1];
   const lastRank = last ? Math.max(...last.placings.map((_, i) => placeOf(last, i))) : -1;
@@ -895,7 +920,8 @@ function punditSummary() {
     `Last game: ${last.name}, where ${pickers.join(' and ')} came last, so ${pickers.join(' or ')} ${pickers.length > 1 ? 'pick' : 'picks'} the next game.`,
     // Ready-made gaps: the model is unreliable at subtracting scores itself.
     leaderLine(tbl),
-    `Gap from 1st to last overall: ${plural(Math.abs(tbl[0].points - tbl[tbl.length - 1].points), 'point')}.`].join('\n');
+    `Gap from 1st to last overall: ${plural(Math.abs(tbl[0].points - tbl[tbl.length - 1].points), 'point')}.`,
+    ...historyLines(S.t)].join('\n');
 }
 function leaderLine(tbl) {
   const name = r => pById(r.id)?.name;
@@ -904,19 +930,26 @@ function leaderLine(tbl) {
   return `Leader: ${name(top[0])}, ${plural(Math.abs(top[0].points - next.points), 'point')} clear of ${tbl.filter(r => r.pos === next.pos).map(name).join(' and ')}.`;
 }
 async function askPundit() {
+  if (punditBusy) return;
   stopPundit();
+  const mine = punditFor = { t: S.t, games: S.games.length };
   punditText = '';
+  punditBusy = true;
+  punditWhen();
   $('#punditText').innerHTML = `<span class="blink">THE PUNDIT IS THINKING...</span>`;
   ['#punditSay', '#punditCopy', '#punditAgain'].forEach(s => $(s).disabled = true);
+  let text = '';
   try {
     const r = await fetch(PUNDIT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ summary: punditSummary() }) });
     if (!r.ok) throw new Error(r.status);
-    punditText = String((await r.json()).text || '').trim();
-    if (!punditText) throw new Error('empty');
-    $('#punditText').textContent = punditText;
-  } catch {
-    $('#punditText').innerHTML = `<span class="err">THE PUNDIT HAS LOST HIS VOICE. TRY AGAIN IN A MINUTE.</span>`;
-  }
+    text = String((await r.json()).text || '').trim();
+  } catch {}
+  punditBusy = false;
+  if (punditFor !== mine) return; // moved to another tournament meanwhile
+  punditText = text;
+  if (text) { $('#punditText').textContent = text; savePundit(mine.t, mine.games, text); }
+  else { punditFor = null; $('#punditText').innerHTML = `<span class="err">THE PUNDIT HAS LOST HIS VOICE. TRY AGAIN IN A MINUTE.</span>`; }
+  punditWhen();
   $('#punditAgain').disabled = false;
   $('#punditSay').disabled = $('#punditCopy').disabled = !punditText;
   $('#punditSay').innerHTML = '&#9654; LISTEN';
@@ -972,11 +1005,25 @@ $('#punditAgain').onclick = askPundit;
 $('#punditCopy').onclick = async () => {
   try { await navigator.clipboard.writeText(punditText); toast('COPIED!'); } catch { toast('COULD NOT COPY', true); }
 };
-$('#punditSheet').addEventListener('close', () => { stopPundit(); spoken = null; });
+// Closing keeps the verdict (and its voiceover) for next time; only ANOTHER asks again.
+$('#punditSheet').addEventListener('close', stopPundit);
 $('#standingsBody').addEventListener('click', e => {
   if (!e.target.closest('#punditBtn')) return;
   $('#punditTitle').innerHTML = `${px(MIC)} PUNDIT`;
   openSheet($('#punditSheet'));
+  if (punditFor?.t === S.t && (punditText || punditBusy)) return punditWhen();
+  // After a reload, bring back this phone's latest verdict rather than asking again.
+  const last = punditHistory(S.t).pop();
+  if (last && !punditBusy) {
+    stopPundit();
+    punditFor = { t: S.t, games: last.games };
+    punditText = last.text;
+    $('#punditText').textContent = last.text;
+    punditWhen();
+    $('#punditAgain').disabled = $('#punditSay').disabled = $('#punditCopy').disabled = false;
+    return;
+  }
+  punditBusy = false;
   askPundit();
 });
 
