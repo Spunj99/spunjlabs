@@ -52,6 +52,8 @@ const chipIcon = () => `<svg class="px chip" viewBox="0 0 16 16" aria-hidden="tr
 
 // Archive order: tournament number, or seq for numberless exhibitions (e.g. 10.5).
 const sortKey = t => t.seq ?? t.number ?? 0;
+// Average finishing place (1-4) as a rating: 100% = always 1st, 0% = always last.
+const rating = avg => `${Math.round((4 - avg) / 3 * 100)}%`;
 const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 const fmtDate = d => { const [y, m, day] = String(d).split('-'); return m ? `${+day} ${MONTHS[m - 1]} ${y}` : esc(d); };
 
@@ -394,13 +396,13 @@ const PRICES = ['1/5', '1/4', '1/3', '2/5', '1/2', '4/6', '4/5', 'EVS', '6/4', '
 const priceValue = s => s === 'EVS' ? 1 : s.split('/').reduce((a, b) => a / b);
 function fakeOdds(ps) {
   const FINISH = [4, 2, 1, 0.3];
-  const rating = ps.map(p => {
+  const strength = ps.map(p => {
     const form = p.form.length ? p.form.reduce((a, f, i) => a + (i + 1) * (FINISH[f.pos - 1] ?? 0), 0) / p.form.reduce((a, _, i) => a + i + 1, 0) : 0.3;
     // Fewer than five events: regress towards an average outsider.
     const seen = Math.min(p.form.length, 5) / 5;
     return Math.max(0.05, (form * seen + 0.8 * (1 - seen)) + 3 * p.winRate);
   });
-  const sq = rating.map(r => r * r), total = sq.reduce((a, b) => a + b, 0);
+  const sq = strength.map(r => r * r), total = sq.reduce((a, b) => a + b, 0);
   return sq.map(s => {
     const chance = Math.min(0.95, (s / total) * 1.18); // 18% overround
     const want = 1 / chance - 1;
@@ -903,7 +905,7 @@ function renderStats() {
   t = top(x => x.slump.n);
   add('LONGEST SLUMP', who(t.ids), `${plural(t.value, 'game')} without a win${t.ids.length === 1 ? ` &middot; ${range(per[t.ids[0]].slump)}` : ''}`);
   t = top(x => x.placeSum / x.played, true);
-  add('BEST AVERAGE FINISH', who(t.ids), `averages ${t.value.toFixed(2)} (1 = always 1st)`);
+  add('BEST RATING', who(t.ids), `${rating(t.value)} (100% = always 1st)`);
   t = top(x => x.ledFor);
   add('TIME AT THE TOP', who(t.ids), `leading after ${t.value} of ${games} games`);
   tiles.push(`<div class="tile"><small>LEAD CHANGES</small><b class="big">${s.leadChanges}</b><span>${s.leadChanges ? 'times the lead swapped hands' : 'led from start to finish'}</span></div>`);
@@ -1065,11 +1067,11 @@ async function openGlobal() {
 
     <h3 class="hh">CAREER</h3>
     <div class="scroll"><table class="career">
-      <thead><tr><th>PLAYER</th><th title="Titles">${px(TROPHY, 'gold')}</th><th>EVENTS</th><th>GAMES</th><th>WINS</th><th>WIN %</th><th>AVG</th></tr></thead>
+      <thead><tr><th>PLAYER</th><th title="Titles">${px(TROPHY, 'gold')}</th><th>EVENTS</th><th>GAMES</th><th>WINS</th><th>WIN %</th><th>RATING</th></tr></thead>
       <tbody>${g.players.map(p => `<tr><td><button class="plink" type="button" data-who="${esc(p.name)}">${esc(p.name)}</button></td><td class="hl">${p.titles}</td><td>${p.tournaments}</td><td>${p.games}</td>
-        <td>${p.wins}</td><td>${pct(p.winRate)}</td><td>${p.avg.toFixed(2)}</td></tr>`).join('')}</tbody>
+        <td>${p.wins}</td><td>${pct(p.winRate)}</td><td>${rating(p.avg)}</td></tr>`).join('')}</tbody>
     </table></div>
-    <p class="note">AVG = average finishing place in a game (1 = always 1st), whatever the scoring.</p>
+    <p class="note">RATING = how high they finish on average: 100% = always 1st, 0% = always last, whatever the scoring.</p>
 
     ${g.players.some(p => p.form.length) ? `<h3 class="hh">FORM</h3>
     <ul class="formg">${g.players.map((p, i) => `<li><b>${esc(p.name)}</b><span>${p.form.map(f =>
@@ -1093,7 +1095,7 @@ const GB = { book: null, stack: [], q: '' };
 const gArt = (c, cls = 'gart') => `<span class="${cls}">${c ? `<img src="${esc(c)}" alt="" loading="lazy">` : '?'}</span>`;
 const tourLabel = t => t.number ? `RVGD ${roman(t.number)}` : 'EXHIBITION';
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
-const vsUsual = v => Math.abs(v) < 0.05 ? `<span class="vs0">&plusmn;0.0</span>` : `<span class="${v > 0 ? 'vsup' : 'vsdn'}">${v > 0 ? '+' : '&minus;'}${Math.abs(v).toFixed(1)}</span>`;
+const vsUsual = v => { const n = Math.round(v / 3 * 100); return n ? `<span class="${n > 0 ? 'vsup' : 'vsdn'}">${n > 0 ? '+' : '&minus;'}${Math.abs(n)}%</span>` : `<span class="vs0">&plusmn;0%</span>`; };
 const searchKey = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
 
 async function openGames(view = { view: 'list' }) {
@@ -1141,7 +1143,6 @@ function gameCard(x) {
   if (!x) return `<div class="empty"><p>GAME NOT FOUND</p></div>`;
   const names = list => list.map(p => esc(p.name)).join(' &amp; ');
   const first = x.tours[0], last = x.tours[x.tours.length - 1];
-  const best = [...x.players].sort((a, b) => b.vs - a.vs)[0];
   const lw = x.lastWin;
   const most = p => Math.max(...p.places);
   return `
@@ -1154,9 +1155,8 @@ function gameCard(x) {
     ${x.plays < 3 ? `<p class="note warn">Small sample: only ${plural(x.plays, 'play')}, so take this with a pinch of salt.</p>` : ''}
     <div class="tiles">
       ${x.master.length ? `<div class="tile"><small>MASTER</small><b>${names(x.master)}</b><span>${plural(x.master[0].wins, 'win')} from ${plural(x.master[0].plays, 'play')}</span></div>` : ''}
-      <div class="tile"><small>MUG</small><b>${names(x.mug)}</b><span>average finish ${x.mug[0].avg.toFixed(1)}</span></div>
+      <div class="tile"><small>MUG</small><b>${names(x.mug)}</b><span>rated ${rating(x.mug[0].avg)} on this one</span></div>
       ${lw ? `<a class="tile link" data-nav href="${BASE}?t=${esc(lw.id)}"><small>REIGNING CHAMP</small><b>${lw.names.map(esc).join(' &amp; ')}</b><span>won it last time, at ${tourLabel(lw)}</span></a>` : ''}
-      ${best && best.vs >= 0.05 ? `<div class="tile"><small>PLAYS ABOVE THEMSELVES</small><b>${esc(best.name)}</b><span>${best.vs.toFixed(1)} places better than usual</span></div>` : ''}
       ${x.favPick.length ? `<div class="tile"><small>FAVOURITE PICK OF</small><b>${names(x.favPick)}</b><span>picked it ${plural(x.favPick[0].picks, 'time')}, won ${x.favPick[0].wins}</span></div>` : ''}
     </div>
     <h3 class="hh">FINISHES</h3>
@@ -1166,7 +1166,7 @@ function gameCard(x) {
         ${p.places.map(n => `<td class="${n && n === most(p) ? 'hl' : n ? '' : 'dim'}">${n}</td>`).join('')}
         <td>${Math.round(p.winRate * 100)}%</td><td>${vsUsual(p.vs)}</td></tr>`).join('')}</tbody>
     </table></div>
-    <p class="note">Highlighted = where they finish most. VS USUAL = places better (+) or worse (&minus;) than their average finish across every game.</p>`;
+    <p class="note">Highlighted = where they finish most. VS USUAL = their rating on this game compared with their rating across every game (100% = always 1st).</p>`;
 }
 
 function playerView(who) {
@@ -1182,10 +1182,10 @@ function playerView(who) {
   const row = (r, extra) => `<li><button type="button" data-game="${esc(r.g.id)}">${gArt(r.g.cover)}<span class="tx"><b>${esc(r.g.name)}</b><small>${extra}</small></span></button></li>`;
   const line = r => row(r, `${vsUsual(r.s.vs)} vs usual &middot; ${plural(r.s.plays, 'play')} &middot; ${plural(r.s.wins, 'win')}`);
   return `
-    <div class="pview"><b>${esc(who)}</b><span>USUAL FINISH ${me.avg.toFixed(2)} OVER ${me.plays} GAMES</span></div>
-    <h3 class="hh up">PLAYS ABOVE THEMSELVES</h3>
+    <div class="pview"><b>${esc(who)}</b><span>RATED ${rating(me.avg)} OVER ${me.plays} GAMES</span></div>
+    <h3 class="hh up">BEST GAMES</h3>
     <ul class="glist">${top.map(line).join('')}</ul>
-    ${bottom.length ? `<h3 class="hh dn">STRUGGLES WITH</h3><ul class="glist">${bottom.map(line).join('')}</ul>` : ''}
+    ${bottom.length ? `<h3 class="hh dn">WORST GAMES</h3><ul class="glist">${bottom.map(line).join('')}</ul>` : ''}
     ${picks.length ? `<h3 class="hh">FAVOURITE PICKS</h3><ul class="glist">${picks.map(r => row(r, `picked ${plural(r.p.picks, 'time')} &middot; won ${r.p.wins}`)).join('')}</ul>` : ''}
     <p class="note">Compared with their usual (average) finish across every game; games played at least twice.</p>`;
 }
