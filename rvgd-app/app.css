@@ -447,3 +447,10 @@ a.tile{color:inherit;text-decoration:none}
 .hh.up{color:var(--green)}.hh.dn{color:var(--pink)}
 .gl2[data-game],.mp li[data-game]{cursor:pointer}
 .gl2[data-game]:hover b,.mp li[data-game]:hover b{color:var(--yellow)}
+/* game finder main list: two columns, names wrap to two lines */
+#gList{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+#gList li>button{height:100%;gap:8px;padding:5px}
+#gList .gart{width:30px;height:40px}
+#gList .tx b{white-space:normal;font-size:19px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+#gList .tx small{font-size:15px}
+#gList li.note{grid-column:1/-1}

@@ -1133,7 +1133,7 @@ function renderGameList() {
   const q = searchKey(GB.q);
   const hits = GB.book.games.filter(g => !q || searchKey(g.name).includes(q));
   $('#gList').innerHTML = hits.map(g => `<li><button type="button" data-game="${esc(g.id)}">${gArt(g.cover)}
-    <span class="tx"><b>${esc(g.name)}</b><small>${plural(g.plays, 'play')} &middot; ${g.tours.length > 1 ? `${tourLabel(g.tours[0])} &ndash; ${tourLabel(g.tours[g.tours.length - 1])}` : tourLabel(g.tours[0])}</small></span></button></li>`).join('')
+    <span class="tx"><b>${esc(g.name)}</b><small>${plural(g.plays, 'play')} &middot; ${[...new Set([g.tours[0], g.tours[g.tours.length - 1]])].map(t => roman(t.number)).join('&ndash;')}</small></span></button></li>`).join('')
     || `<li class="note">NO PLAYED GAME MATCHES THAT.</li>`;
 }
 
