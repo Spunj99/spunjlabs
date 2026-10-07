@@ -839,7 +839,7 @@ function renderStandings() {
     }).join('')}</ol>
     <p class="sub">GAMES <b>${S.games.length}</b> &middot; POINTS <b>${sc.points.join('/')}</b>${sc.lowWins ? ' &middot; <b>LOWEST WINS</b>' : ''}
     ${sc.wackChip ? `<br>WACK CHIP <b>ON</b>${chipP ? ` &middot; HELD BY <b style="color:${chipP.color}">${esc(chipP.name)}</b> (+${st.chip.next} NEXT GAME)` : ''}` : ''}</p>
-    ${live() && S.games.length && (trusted || S.editable) ? `<button class="btn pundit-btn" id="punditBtn" type="button">${px(MIC)} PUNDIT'S VERDICT</button>` : ''}`;
+    ${live() && S.games.length && (trusted || S.editable) ? `<button class="btn pundit-btn" id="punditBtn" type="button">${px(MIC)} PUNDIT'S VERDICT<span class="uses" aria-label="verdicts used">${punditUses(S.t)}/${PUNDIT_MAX}</span></button>` : ''}`;
   $('#adminBtn').hidden = false;
 }
 
@@ -896,6 +896,17 @@ function punditWhen() {
 // call back to earlier ones and avoid repeating jokes. A reroll (ANOTHER with no new games)
 // replaces the latest verdict rather than counting as a new update.
 const punditKey = t => `rvgd-pundit-${t}`;
+// Verdicts per tournament on this phone (every successful ask, rerolls included), to ration the
+// Worker's free daily AI allowance. At the cap the last verdict can still be read and played.
+const PUNDIT_MAX = 20;
+const usesKey = t => `rvgd-pundit-uses-${t}`;
+function punditUses(t) { try { return +localStorage.getItem(usesKey(t)) || 0; } catch { return 0; } }
+function countPunditUse(t) {
+  try { localStorage.setItem(usesKey(t), punditUses(t) + 1); } catch {}
+  const b = $('#punditBtn .uses');
+  if (b && S.t === t) b.textContent = `${punditUses(t)}/${PUNDIT_MAX}`;
+}
+const punditSpent = () => punditUses(S.t) >= PUNDIT_MAX;
 function punditHistory(t) {
   try { return JSON.parse(localStorage.getItem(punditKey(t))) || []; } catch { return []; }
 }
@@ -930,7 +941,7 @@ function leaderLine(tbl) {
   return `Leader: ${name(top[0])}, ${plural(Math.abs(top[0].points - next.points), 'point')} clear of ${tbl.filter(r => r.pos === next.pos).map(name).join(' and ')}.`;
 }
 async function askPundit() {
-  if (punditBusy) return;
+  if (punditBusy || punditSpent()) return;
   stopPundit();
   const mine = punditFor = { t: S.t, games: S.games.length };
   punditText = '';
@@ -938,19 +949,32 @@ async function askPundit() {
   punditWhen();
   $('#punditText').innerHTML = `<span class="blink">THE PUNDIT IS THINKING...</span>`;
   ['#punditSay', '#punditCopy', '#punditAgain'].forEach(s => $(s).disabled = true);
-  let text = '';
+  let text = '', outOfTokens = false;
   try {
     const r = await fetch(PUNDIT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ summary: punditSummary() }) });
+    // 429 = the Worker's free daily AI allowance is used up (resets at midnight UTC).
+    outOfTokens = r.status === 429;
     if (!r.ok) throw new Error(r.status);
     text = String((await r.json()).text || '').trim();
   } catch {}
   punditBusy = false;
   if (punditFor !== mine) return; // moved to another tournament meanwhile
   punditText = text;
-  if (text) { $('#punditText').textContent = text; savePundit(mine.t, mine.games, text); }
-  else { punditFor = null; $('#punditText').innerHTML = `<span class="err">THE PUNDIT HAS LOST HIS VOICE. TRY AGAIN IN A MINUTE.</span>`; }
+  if (text) {
+    $('#punditText').textContent = text;
+    savePundit(mine.t, mine.games, text);
+    countPunditUse(mine.t);
+  } else {
+    punditFor = null;
+    $('#punditText').innerHTML = `<span class="err">${outOfTokens ? 'OUT OF TOKENS.' : 'THE PUNDIT HAS LOST HIS VOICE. TRY AGAIN IN A MINUTE.'}</span>`;
+  }
+  punditControls();
+}
+// Buttons and caption for whatever verdict is showing; ANOTHER is off once the cap is reached.
+function punditControls() {
   punditWhen();
-  $('#punditAgain').disabled = false;
+  if (punditSpent() && punditText) $('#punditWhen').innerHTML += ` &middot; ALL ${PUNDIT_MAX} VERDICTS USED`;
+  $('#punditAgain').disabled = punditSpent();
   $('#punditSay').disabled = $('#punditCopy').disabled = !punditText;
   $('#punditSay').innerHTML = '&#9654; LISTEN';
 }
@@ -1032,17 +1056,21 @@ $('#standingsBody').addEventListener('click', e => {
   if (!e.target.closest('#punditBtn')) return;
   $('#punditTitle').innerHTML = `${px(MIC)} PUNDIT`;
   openSheet($('#punditSheet'));
-  if (punditFor?.t === S.t && (punditText || punditBusy)) return punditWhen();
-  // After a reload, bring back this phone's latest verdict rather than asking again.
+  if (punditFor?.t === S.t && punditBusy) return punditWhen();
+  if (punditFor?.t === S.t && punditText) return punditControls();
+  // After a reload (or a failed ask), bring back this phone's latest verdict rather than asking again.
   const last = punditHistory(S.t).pop();
   if (last && !punditBusy) {
     stopPundit();
     punditFor = { t: S.t, games: last.games };
     punditText = last.text;
     $('#punditText').textContent = last.text;
-    punditWhen();
-    $('#punditAgain').disabled = $('#punditSay').disabled = $('#punditCopy').disabled = false;
-    return;
+    return punditControls();
+  }
+  if (punditSpent()) {
+    punditText = '';
+    $('#punditText').innerHTML = `<span class="err">ALL ${PUNDIT_MAX} VERDICTS USED.</span>`;
+    return punditControls();
   }
   punditBusy = false;
   askPundit();
