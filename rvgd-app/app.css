@@ -464,3 +464,5 @@ a.tile{color:inherit;text-decoration:none}
 .bubble .err{font:400 9px/1.8 var(--pixel);color:var(--pink)}
 #punditSheet .sheet-actions .btn{font-size:9px;padding:8px 6px}
 .pwhen{min-height:1em;margin:6px 0 0;font:400 7px/1.6 var(--pixel);color:var(--mut)}
+/* pundit verdicts come as one paragraph per player */
+.bubble{white-space:pre-line}

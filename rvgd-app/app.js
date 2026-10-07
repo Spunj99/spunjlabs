@@ -909,7 +909,7 @@ function historyLines(t) {
   const h = punditHistory(t).filter(v => v.games < S.games.length);
   if (!h.length) return ['', 'PUNDIT HISTORY: This is your first update of the day.'];
   return ['', `PUNDIT HISTORY: This is your update number ${h.length + 1} of the day. Your earlier updates (oldest first):`,
-    ...h.slice(-3).map(v => `- After game ${v.games}: "${v.text}"`)];
+    ...h.slice(-3).map(v => `- After game ${v.games}: "${v.text.replace(/\s*\n+\s*/g, ' ')}"`)];
 }
 function punditSummary() {
   const last = S.games[S.games.length - 1];
@@ -960,46 +960,67 @@ function pickVoice() {
   return vs.find(v => v.lang === 'en-GB' && /daniel|male|george|arthur|oliver/i.test(v.name)) || vs.find(v => v.lang === 'en-GB') || vs.find(v => v.lang.startsWith('en')) || null;
 }
 window.speechSynthesis?.getVoices();
-// Voiceover: the Worker's /speak (Deepgram Aura via Workers AI). The <audio> element fetches
-// it itself, so play() runs inside the tap (iOS needs that). Falls back to the phone's voice.
-let punditAudio = null;
+// Voiceover: the Worker's /speak (Deepgram Aura via Workers AI), one clip per paragraph with a
+// pause between them. Falls back to the phone's own voice if the Worker can't be reached.
+const PARA_GAP = 700; // ms of silence between paragraphs
+// A silent clip played inside the tap: iOS only lets an <audio> play later if it started in a tap.
+const SILENT = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=';
+const paragraphs = text => text.split(/\n+/).map(p => p.trim()).filter(Boolean);
+let punditAudio = null, gapTimer = 0;
 const sayLabel = () => { $('#punditSay').innerHTML = '&#9654; LISTEN'; };
 function stopPundit() {
+  clearTimeout(gapTimer);
   if (punditAudio) { punditAudio.pause(); punditAudio = null; }
   window.speechSynthesis?.cancel();
   sayLabel();
 }
-// The voice uses most of the Worker's free daily allowance, so each paragraph is only voiced
-// once: LISTEN again replays the same audio (kept until ANOTHER or closing the sheet).
-let spoken = null; // { text, audio }
+// The voice uses most of the Worker's free daily allowance, so each verdict is only voiced once:
+// the clips are kept as blobs and LISTEN again replays them (until ANOTHER).
+let spoken = null; // { text, clips: [Promise<blob url>] }
+async function fetchClip(p) {
+  const r = await fetch(`${PUNDIT_URL}/speak?text=${encodeURIComponent(p)}`);
+  if (!r.ok) throw new Error(r.status);
+  return URL.createObjectURL(await r.blob());
+}
 $('#punditSay').onclick = () => {
   if (punditAudio || window.speechSynthesis?.speaking) return stopPundit();
+  const a = punditAudio = new Audio(SILENT);
+  a.play().catch(() => {});
   if (spoken?.text !== punditText) {
-    const a = new Audio();
-    a.crossOrigin = 'anonymous'; // sends the Origin header the Worker checks
-    a.preload = 'auto';
-    a.src = `${PUNDIT_URL}/speak?text=${encodeURIComponent(punditText)}`;
-    // The TTS model has no speed setting; play it a touch slower (browsers keep the pitch).
-    a.defaultPlaybackRate = a.playbackRate = 0.9;
-    a.onended = () => { punditAudio = null; sayLabel(); };
-    a.onerror = () => { spoken = null; if (punditAudio === a) { punditAudio = null; speakLocally(); } };
-    spoken = { text: punditText, audio: a };
+    spoken?.clips.forEach(c => c.then(URL.revokeObjectURL, () => {}));
+    // Fetch every paragraph at once, so the next one is ready when the gap ends.
+    spoken = { text: punditText, clips: paragraphs(punditText).map(p => { const c = fetchClip(p); c.catch(() => {}); return c; }) };
   }
-  const a = punditAudio = spoken.audio;
-  a.currentTime = 0;
   $('#punditSay').innerHTML = '&#9632; STOP';
-  a.play().catch(() => a.onerror());
+  playClip(a, spoken, 0);
 };
-function speakLocally() {
+async function playClip(a, sp, i) {
+  if (punditAudio !== a) return;
+  if (i >= sp.clips.length) { punditAudio = null; return sayLabel(); }
+  let url;
+  try { url = await sp.clips[i]; } catch { url = null; }
+  if (punditAudio !== a) return;
+  const fail = () => { if (punditAudio !== a) return; if (spoken === sp) spoken = null; punditAudio = null; speakLocally(paragraphs(sp.text).slice(i)); };
+  if (!url) return fail();
+  a.onended = () => { gapTimer = setTimeout(() => playClip(a, sp, i + 1), PARA_GAP); };
+  a.onerror = fail;
+  a.src = url;
+  // The TTS model has no speed setting; play it a touch slower (browsers keep the pitch).
+  a.defaultPlaybackRate = a.playbackRate = 0.9;
+  a.play().catch(fail);
+}
+function speakLocally(paras = paragraphs(punditText)) {
   const synth = window.speechSynthesis;
   if (!synth) { sayLabel(); return toast('NO VOICE ON THIS DEVICE', true); }
-  const u = new SpeechSynthesisUtterance(punditText);
   const v = pickVoice();
-  if (v) { u.voice = v; u.lang = v.lang; }
-  u.rate = 0.95; u.pitch = 0.9;
-  u.onend = u.onerror = sayLabel;
+  paras.forEach((p, i) => {
+    const u = new SpeechSynthesisUtterance(p);
+    if (v) { u.voice = v; u.lang = v.lang; }
+    u.rate = 0.95; u.pitch = 0.9;
+    if (i === paras.length - 1) u.onend = u.onerror = sayLabel;
+    synth.speak(u);
+  });
   $('#punditSay').innerHTML = '&#9632; STOP';
-  synth.speak(u);
 }
 $('#punditAgain').onclick = askPundit;
 $('#punditCopy').onclick = async () => {
