@@ -94,6 +94,64 @@ export function computeStats(players, games, scoring) {
   return { games: rows.length, history, per, leadChanges, rivalry, chip, top };
 }
 
+// The game book: every game ever played, with each player's finishes on it, compared with
+// their usual finish across all games. Places, not points, so old and new scoring mix.
+export function computeGameBook(tours) {
+  const key = n => String(n || '').trim().toUpperCase();
+  const gid = g => String(g.gameId ?? g.rawgId ?? 'n-' + key(g.name));
+  const ordered = [...tours].sort((a, b) => (a.seq ?? a.number ?? 0) - (b.seq ?? b.number ?? 0));
+  const G = {}, overall = {};
+
+  for (const t of ordered) {
+    const names = Object.fromEntries((t.players || []).map(p => [p.id, key(p.name)]));
+    const valid = t.games.filter(g => (g.placings || []).length === 4 && g.placings.every(id => names[id]));
+    const tour = { id: t.id, number: t.number };
+    let pickers = []; // last game's loser(s) pick the next one
+    for (const g of valid) {
+      const place = {};
+      g.placings.forEach((id, i) => { place[names[id]] = placeOf(g, i); });
+      const last = Math.max(...Object.values(place));
+      const id = gid(g);
+      const x = (G[id] ||= { id, name: g.name, cover: '', plays: 0, team: 0, tours: [], players: {}, pickers: {}, lastWin: null });
+      x.plays++; x.name = g.name;
+      if (g.team) x.team++;
+      if (g.cover) x.cover = g.cover;
+      if (x.tours[x.tours.length - 1]?.id !== t.id) x.tours.push(tour);
+      x.lastWin = { names: Object.keys(place).filter(n => place[n] === 0), ...tour };
+      for (const [n, r] of Object.entries(place)) {
+        const s = (x.players[n] ||= { name: n, plays: 0, places: [0, 0, 0, 0], sum: 0 });
+        s.plays++; s.places[r]++; s.sum += r + 1;
+        const o = (overall[n] ||= { name: n, plays: 0, sum: 0 });
+        o.plays++; o.sum += r + 1;
+      }
+      for (const n of pickers) {
+        const p = (x.pickers[n] ||= { name: n, picks: 0, wins: 0 });
+        p.picks++; if (place[n] === 0) p.wins++;
+      }
+      pickers = Object.keys(place).filter(n => place[n] === last);
+    }
+  }
+
+  const usual = Object.fromEntries(Object.values(overall).map(o => [o.name, o.sum / o.plays]));
+  const most = (list, fn) => { const best = Math.max(...list.map(fn)); return list.filter(x => fn(x) === best); };
+  const games = Object.values(G).map(x => {
+    // vs = places better (+) or worse (-) than the player's usual finish.
+    const players = Object.values(x.players).map(s => {
+      const avg = s.sum / s.plays;
+      return { ...s, wins: s.places[0], avg, winRate: s.places[0] / s.plays, vs: usual[s.name] - avg };
+    }).sort((a, b) => b.wins - a.wins || a.avg - b.avg);
+    const pickers = Object.values(x.pickers).sort((a, b) => b.picks - a.picks || b.wins - a.wins);
+    return {
+      ...x, players, pickers,
+      master: players[0]?.wins ? most(players, p => p.wins) : [],
+      mug: most(players, p => p.avg),
+      favPick: pickers.length ? most(pickers, p => p.picks) : [],
+    };
+  }).sort((a, b) => b.plays - a.plays || a.name.localeCompare(b.name));
+  const players = Object.values(overall).sort((a, b) => b.plays - a.plays).map(o => ({ name: o.name, plays: o.plays, avg: usual[o.name] }));
+  return { games, players, byId: Object.fromEntries(games.map(g => [g.id, g])) };
+}
+
 // All-time stats across tournaments. Players are matched by name, games by gameId
 // (falling back to the name). Places, not points, are compared, since scoring varies.
 export function computeGlobal(tours) {
@@ -160,7 +218,7 @@ export function computeGlobal(tours) {
       g.placings.forEach((id, i) => { place[names[id]] = placeOf(g, i); });
       const last = Math.max(...Object.values(place));
       const id = gid(g);
-      const gg = (G[id] ||= { name: g.name, cover: '', plays: 0, tied: 0, tours: new Set() });
+      const gg = (G[id] ||= { id, name: g.name, cover: '', plays: 0, tied: 0, tours: new Set() });
       gg.plays++; gg.tours.add(t.id); if (g.cover) gg.cover = g.cover;
       // Shared places, not counting team games (those share places by design).
       if (!g.team && new Set(Object.values(place)).size < 4) gg.tied++;
@@ -169,7 +227,7 @@ export function computeGlobal(tours) {
         s.games++; s.placeSum += r + 1;
         if (r === 0) s.wins++;
         if (r === last) s.lasts++;
-        const b = (s.byGame[id] ||= { name: g.name, cover: '', plays: 0, placeSum: 0, wins: 0 });
+        const b = (s.byGame[id] ||= { id, name: g.name, cover: '', plays: 0, placeSum: 0, wins: 0 });
         b.plays++; b.placeSum += r + 1; if (r === 0) b.wins++; if (g.cover) b.cover = g.cover;
       }
     }

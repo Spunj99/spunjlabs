@@ -1,6 +1,6 @@
 import { createStore } from './store.js';
 import { computeStandings, placeOf, DEFAULT_SCORING, selfTest } from './score.js';
-import { computeStats, computeGlobal } from './stats.js';
+import { computeStats, computeGlobal, computeGameBook } from './stats.js';
 
 // ---- config: paste from Firebase console > Project settings > Your apps ----
 // These are public identifiers, not secrets. Security comes from firestore.rules.
@@ -45,6 +45,7 @@ const ARROW = ['....X.....', '...XX.....', '..XXX.....', '.XXXXXXXXX', 'XXXXXXXX
 const SORT_UP = ['...X...', '..XXX..', '.XXXXX.', 'XXXXXXX'];
 const SORT_DOWN = [...SORT_UP].reverse();
 const CAMERA = ['...XXX....', 'XXXXXXXXXX', 'X........X', 'X...XX...X', 'X..X..X..X', 'X..X..X..X', 'X...XX...X', 'X........X', 'XXXXXXXXXX'];
+const PAD = ['..XXXXXXXXX..', '.XXXXXXXXXXX.', 'XXX.XXXXX.XXX', 'XX...XXX.X.XX', 'XXX.XXXXX.XXX', 'XXXXXXXXXXXXX', 'XXXX.....XXXX', '.XX.......XX.'];
 const WHEEL = ['..XXXXX..', '.X..X..X.', 'X.X.X.X.X', 'X..XXX..X', 'XXXXXXXXX', 'X..XXX..X', 'X.X.X.X.X', '.X..X..X.', '..XXXXX..'];
 const placeIcon = i => i < 3 ? px(TROPHY, ['gold', 'silver', 'bronze'][i]) : px(SKULL, 'wood');
 const chipIcon = () => `<svg class="px chip" viewBox="0 0 16 16" aria-hidden="true" shape-rendering="crispEdges"><circle cx="8" cy="8" r="7.5" fill="#e8642a"/><circle cx="8" cy="8" r="5.2" fill="#7c2d10"/>${[0, 1, 2, 3, 4, 5, 6, 7].map(i => { const a = i * Math.PI / 4; return `<rect x="${(8 + 6.3 * Math.cos(a) - .6).toFixed(1)}" y="${(8 + 6.3 * Math.sin(a) - .6).toFixed(1)}" width="1.2" height="1.2" fill="#7c2d10"/>`; }).join('')}<rect x="5" y="6" width="1.2" height="4" fill="#fff"/><rect x="9.8" y="6" width="1.2" height="4" fill="#fff"/><rect x="6.2" y="8.6" width="1.2" height="1.4" fill="#fff"/><rect x="8.6" y="8.6" width="1.2" height="1.4" fill="#fff"/><rect x="7.4" y="7.4" width="1.2" height="1.4" fill="#fff"/></svg>`;
@@ -91,6 +92,7 @@ $('#standingsBtn').innerHTML = px(TROPHY);
 $('#statsBtn').innerHTML = px(CHART);
 $('#wheelBtn').innerHTML = px(WHEEL);
 $('#galleryBtn').innerHTML = px(CAMERA);
+$('#gamesBtn').innerHTML = px(PAD);
 init();
 
 async function init() {
@@ -135,6 +137,7 @@ async function showArchive() {
   $('#barTitle').innerHTML = `<span class="t1">RVGD</span><span class="t2">Retro Video Games Day</span>`;
   ['#homeBtn', '#wheelBtn', '#galleryBtn', '#lockBtn', '#standingsBtn', '#addBtn'].forEach(s => $(s).hidden = true);
   $('#statsBtn').hidden = false;
+  $('#gamesBtn').hidden = false;
   $('.bar').classList.add('no-tab'); // no trophy tab on the archive, so use the full width
   let list;
   try { list = await store.listTournaments(); }
@@ -164,6 +167,7 @@ function showTournament(t) {
   $('#homeBtn').href = BASE;
   $('#homeBtn').setAttribute('data-nav', '');
   $('#homeBtn').hidden = false;
+  $('#gamesBtn').hidden = true;
   $('#view').innerHTML = `<p class="loading">LOADING<span class="blink">_</span></p>`;
   let gotTour = false;
   unsub.push(store.watchTournament(t, tour => {
@@ -1031,7 +1035,7 @@ async function openGlobal() {
   }
   const pct = v => `${Math.round(v * 100)}%`;
   const art = c => `<span class="gart">${c ? `<img src="${esc(c)}" alt="" loading="lazy">` : '?'}</span>`;
-  const gameLine = (b, label) => b ? `<div class="gl2">${art(b.cover)}<div><small>${label}</small><b>${esc(b.name)}</b>
+  const gameLine = (b, label) => b ? `<div class="gl2" data-game="${esc(b.id)}" role="button" tabindex="0">${art(b.cover)}<div><small>${label}</small><b>${esc(b.name)}</b>
     <span>${b.plays} ${b.plays === 1 ? 'play' : 'plays'} &middot; ${b.wins} ${b.wins === 1 ? 'win' : 'wins'}</span></div></div>` : '';
   const names = g.players.map(p => p.name);
   const odds = fakeOdds(g.players);
@@ -1062,7 +1066,7 @@ async function openGlobal() {
     <h3 class="hh">CAREER</h3>
     <div class="scroll"><table class="career">
       <thead><tr><th>PLAYER</th><th title="Titles">${px(TROPHY, 'gold')}</th><th>EVENTS</th><th>GAMES</th><th>WINS</th><th>WIN %</th><th>AVG</th></tr></thead>
-      <tbody>${g.players.map(p => `<tr><td>${esc(p.name)}</td><td class="hl">${p.titles}</td><td>${p.tournaments}</td><td>${p.games}</td>
+      <tbody>${g.players.map(p => `<tr><td><button class="plink" type="button" data-who="${esc(p.name)}">${esc(p.name)}</button></td><td class="hl">${p.titles}</td><td>${p.tournaments}</td><td>${p.games}</td>
         <td>${p.wins}</td><td>${pct(p.winRate)}</td><td>${p.avg.toFixed(2)}</td></tr>`).join('')}</tbody>
     </table></div>
     <p class="note">AVG = average finishing place in a game (1 = always 1st), whatever the scoring.</p>
@@ -1078,9 +1082,130 @@ async function openGlobal() {
     <p class="note">By average finish on games played at least twice, where there are any.</p>
 
     <h3 class="hh">MOST PLAYED</h3>
-    <ol class="mp">${g.mostPlayed.map(m => `<li>${art(m.cover)}<b>${esc(m.name)}</b>
+    <ol class="mp">${g.mostPlayed.map(m => `<li data-game="${esc(m.id)}" role="button" tabindex="0">${art(m.cover)}<b>${esc(m.name)}</b>
       <span>${m.plays}&times;${m.tours > 1 ? ` &middot; ${m.tours} events` : ''}</span></li>`).join('')}</ol>`;
 }
+
+// ---------- game finder ----------
+// Search every game played (exhibitions excluded, like the Hall of Fame), open a game card,
+// or pick a player to see the games they do best and worst at compared with their usual finish.
+const GB = { book: null, stack: [], q: '' };
+const gArt = (c, cls = 'gart') => `<span class="${cls}">${c ? `<img src="${esc(c)}" alt="" loading="lazy">` : '?'}</span>`;
+const tourLabel = t => t.number ? `RVGD ${roman(t.number)}` : 'EXHIBITION';
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+const vsUsual = v => Math.abs(v) < 0.05 ? `<span class="vs0">&plusmn;0.0</span>` : `<span class="${v > 0 ? 'vsup' : 'vsdn'}">${v > 0 ? '+' : '&minus;'}${Math.abs(v).toFixed(1)}</span>`;
+const searchKey = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+
+async function openGames(view = { view: 'list' }) {
+  openSheet($('#gamesSheet'));
+  GB.stack = [];
+  $('#gamesBack').hidden = true;
+  $('#gamesTitle').innerHTML = `${px(PAD)} GAMES`;
+  $('#gamesBody').innerHTML = `<p class="loading">LOADING<span class="blink">_</span></p>`;
+  try {
+    const list = await store.listTournaments();
+    const tours = await Promise.all(list.filter(t => !t.exhibition).map(async t => ({ ...t, games: await store.loadGames(t.id) })));
+    GB.book = computeGameBook(tours);
+  } catch {
+    $('#gamesBody').innerHTML = `<div class="empty"><p>COULD NOT LOAD GAMES.</p></div>`;
+    return;
+  }
+  showGames(view);
+}
+function showGames(v, push = false) {
+  if (push && GB.cur) GB.stack.push(GB.cur);
+  GB.cur = v;
+  $('#gamesBack').hidden = !GB.stack.length;
+  const body = $('#gamesBody');
+  if (v.view === 'game') body.innerHTML = gameCard(GB.book.byId[v.id]);
+  else if (v.view === 'player') body.innerHTML = playerView(v.who);
+  else {
+    body.innerHTML = `
+      <label class="search"><span class="prompt" aria-hidden="true">&#9654;</span>
+        <input id="gameQ" type="search" placeholder="FIND A GAME" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="Find a game" value="${esc(GB.q)}"></label>
+      <div class="pchips"><small>OR PICK A PLAYER</small>${GB.book.players.map(p => `<button class="pchip" type="button" data-who="${esc(p.name)}">${esc(p.name)}</button>`).join('')}</div>
+      <ul class="glist" id="gList"></ul>`;
+    renderGameList();
+  }
+  $('#gamesSheet .sheet-in').scrollTop = 0;
+}
+function renderGameList() {
+  const q = searchKey(GB.q);
+  const hits = GB.book.games.filter(g => !q || searchKey(g.name).includes(q));
+  $('#gList').innerHTML = hits.map(g => `<li><button type="button" data-game="${esc(g.id)}">${gArt(g.cover)}
+    <span class="tx"><b>${esc(g.name)}</b><small>${plural(g.plays, 'play')} &middot; ${g.tours.length > 1 ? `${tourLabel(g.tours[0])} &ndash; ${tourLabel(g.tours[g.tours.length - 1])}` : tourLabel(g.tours[0])}</small></span></button></li>`).join('')
+    || `<li class="note">NO PLAYED GAME MATCHES THAT.</li>`;
+}
+
+function gameCard(x) {
+  if (!x) return `<div class="empty"><p>GAME NOT FOUND</p></div>`;
+  const names = list => list.map(p => esc(p.name)).join(' &amp; ');
+  const first = x.tours[0], last = x.tours[x.tours.length - 1];
+  const best = [...x.players].sort((a, b) => b.vs - a.vs)[0];
+  const lw = x.lastWin;
+  const most = p => Math.max(...p.places);
+  return `
+    <div class="gcard">${gArt(x.cover, 'gcv')}<div>
+      <b>${esc(x.name)}</b>
+      <span>PLAYED ${x.plays}&times; IN ${plural(x.tours.length, 'TOURNAMENT').toUpperCase()}</span>
+      <span>${first === last ? `ONLY AT ${tourLabel(first)}` : `FIRST ${tourLabel(first)} &middot; LAST ${tourLabel(last)}`}</span>
+      ${x.team ? `<span>${x.team}&times; AS A TEAM GAME</span>` : ''}
+    </div></div>
+    ${x.plays < 3 ? `<p class="note warn">Small sample: only ${plural(x.plays, 'play')}, so take this with a pinch of salt.</p>` : ''}
+    <div class="tiles">
+      ${x.master.length ? `<div class="tile"><small>MASTER</small><b>${names(x.master)}</b><span>${plural(x.master[0].wins, 'win')} from ${plural(x.master[0].plays, 'play')}</span></div>` : ''}
+      <div class="tile"><small>MUG</small><b>${names(x.mug)}</b><span>average finish ${x.mug[0].avg.toFixed(1)}</span></div>
+      ${lw ? `<a class="tile link" data-nav href="${BASE}?t=${esc(lw.id)}"><small>REIGNING CHAMP</small><b>${lw.names.map(esc).join(' &amp; ')}</b><span>won it last time, at ${tourLabel(lw)}</span></a>` : ''}
+      ${best && best.vs >= 0.05 ? `<div class="tile"><small>PLAYS ABOVE THEMSELVES</small><b>${esc(best.name)}</b><span>${best.vs.toFixed(1)} places better than usual</span></div>` : ''}
+      ${x.favPick.length ? `<div class="tile"><small>FAVOURITE PICK OF</small><b>${names(x.favPick)}</b><span>picked it ${plural(x.favPick[0].picks, 'time')}, won ${x.favPick[0].wins}</span></div>` : ''}
+    </div>
+    <h3 class="hh">FINISHES</h3>
+    <div class="scroll"><table class="career gfin">
+      <thead><tr><th>PLAYER</th>${[0, 1, 2, 3].map(i => `<th>${placeIcon(i)}</th>`).join('')}<th>WIN %</th><th>VS USUAL</th></tr></thead>
+      <tbody>${x.players.map(p => `<tr><td><button class="plink" type="button" data-who="${esc(p.name)}">${esc(p.name)}</button></td>
+        ${p.places.map(n => `<td class="${n && n === most(p) ? 'hl' : n ? '' : 'dim'}">${n}</td>`).join('')}
+        <td>${Math.round(p.winRate * 100)}%</td><td>${vsUsual(p.vs)}</td></tr>`).join('')}</tbody>
+    </table></div>
+    <p class="note">Highlighted = where they finish most. VS USUAL = places better (+) or worse (&minus;) than their average finish across every game.</p>`;
+}
+
+function playerView(who) {
+  const me = GB.book.players.find(p => p.name === who);
+  if (!me) return `<div class="empty"><p>PLAYER NOT FOUND</p></div>`;
+  const mine = GB.book.games.map(g => ({ g, s: g.players.find(p => p.name === who) })).filter(r => r.s);
+  // Rank games played at least twice (or all of them, if nothing repeats).
+  const pool = mine.some(r => r.s.plays >= 2) ? mine.filter(r => r.s.plays >= 2) : mine;
+  const ranked = [...pool].sort((a, b) => b.s.vs - a.s.vs || b.s.plays - a.s.plays);
+  const n = Math.min(5, Math.ceil(ranked.length / 2));
+  const top = ranked.slice(0, n), bottom = ranked.slice(n).slice(-5).reverse();
+  const picks = mine.map(r => ({ g: r.g, p: r.g.pickers.find(p => p.name === who) })).filter(r => r.p).sort((a, b) => b.p.picks - a.p.picks || b.p.wins - a.p.wins).slice(0, 3);
+  const row = (r, extra) => `<li><button type="button" data-game="${esc(r.g.id)}">${gArt(r.g.cover)}<span class="tx"><b>${esc(r.g.name)}</b><small>${extra}</small></span></button></li>`;
+  const line = r => row(r, `${vsUsual(r.s.vs)} vs usual &middot; ${plural(r.s.plays, 'play')} &middot; ${plural(r.s.wins, 'win')}`);
+  return `
+    <div class="pview"><b>${esc(who)}</b><span>USUAL FINISH ${me.avg.toFixed(2)} OVER ${me.plays} GAMES</span></div>
+    <h3 class="hh up">PLAYS ABOVE THEMSELVES</h3>
+    <ul class="glist">${top.map(line).join('')}</ul>
+    ${bottom.length ? `<h3 class="hh dn">STRUGGLES WITH</h3><ul class="glist">${bottom.map(line).join('')}</ul>` : ''}
+    ${picks.length ? `<h3 class="hh">FAVOURITE PICKS</h3><ul class="glist">${picks.map(r => row(r, `picked ${plural(r.p.picks, 'time')} &middot; won ${r.p.wins}`)).join('')}</ul>` : ''}
+    <p class="note">Compared with their usual (average) finish across every game; games played at least twice.</p>`;
+}
+
+$('#gamesBtn').onclick = () => { GB.q = ''; openGames(); };
+$('#gamesBack').onclick = () => { if (GB.stack.length) { GB.cur = null; showGames(GB.stack.pop()); } };
+$('#gamesBody').addEventListener('input', e => { if (e.target.id === 'gameQ') { GB.q = e.target.value; renderGameList(); } });
+$('#gamesBody').addEventListener('click', e => {
+  const g = e.target.closest('[data-game]'), w = e.target.closest('[data-who]');
+  if (g) showGames({ view: 'game', id: g.dataset.game }, true);
+  else if (w) showGames({ view: 'player', who: w.dataset.who }, true);
+});
+// Hall of Fame: games and player names open the finder on top.
+$('#statsBody').addEventListener('click', e => {
+  if (S.t) return;
+  const g = e.target.closest('[data-game]'), w = e.target.closest('[data-who]');
+  if (g) openGames({ view: 'game', id: g.dataset.game });
+  else if (w) openGames({ view: 'player', who: w.dataset.who });
+});
+$('#statsBody').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('[data-game][tabindex]')) e.target.click(); });
 
 // ---------- admin ----------
 $('#adminBtn').onclick = async () => {

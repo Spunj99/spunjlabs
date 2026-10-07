@@ -31,6 +31,7 @@
   </div>
   <button class="bar-btn" id="wheelBtn" type="button" aria-label="1v1 draw wheel" hidden></button>
   <button class="bar-btn" id="galleryBtn" type="button" aria-label="Photo gallery" hidden></button>
+  <button class="bar-btn" id="gamesBtn" type="button" aria-label="Game finder" hidden></button>
   <button class="bar-btn" id="statsBtn" type="button" aria-label="Stats" hidden></button>
   <button class="bar-btn" id="lockBtn" type="button" aria-label="Unlock scoring" hidden></button>
   <button class="trophy-tab" id="standingsBtn" type="button" aria-label="Standings" hidden></button>
@@ -115,6 +116,18 @@
       <button class="btn" id="wheelReset" type="button">&#8634; RESET</button>
       <button class="btn primary" id="wheelSpin" type="button">SPIN &#9654;</button>
     </div>
+  </div>
+</dialog>
+
+<!-- Game finder: search played games, game cards, player views -->
+<dialog class="sheet tall" id="gamesSheet" aria-labelledby="gamesTitle">
+  <div class="sheet-in">
+    <div class="sheet-head">
+      <button class="x back" id="gamesBack" type="button" aria-label="Back" hidden>&#9664;</button>
+      <h2 id="gamesTitle">GAMES</h2>
+      <button class="x" type="button" data-close aria-label="Close">&times;</button>
+    </div>
+    <div id="gamesBody"></div>
   </div>
 </dialog>
 
