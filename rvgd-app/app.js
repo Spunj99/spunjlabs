@@ -903,12 +903,14 @@ const punditKey = t => `rvgd-pundit-${t}`;
 // Verdicts per tournament (every successful ask, rerolls included), counted by the Worker in
 // Cloudflare KV so every phone shares the limit; it refuses once a tournament reaches the cap.
 // Cached here, refreshed when the standings open and after each ask. At the cap the last
-// verdict can still be read and played.
-const PUNDIT_MAX = 20;
+// verdict can still be read and played. The cap itself comes from the Worker (MAX_VERDICTS),
+// so changing it there is enough; 12 is only the fallback until it has answered.
+let PUNDIT_MAX = 12;
 const punditCount = {};
 const punditUses = t => punditCount[t] ?? 0;
 const punditSpent = () => punditUses(S.t) >= PUNDIT_MAX;
-function setPunditUses(t, n) {
+function setPunditUses(t, n, max) {
+  if (Number.isFinite(max) && max > 0) PUNDIT_MAX = max;
   if (!Number.isFinite(n)) return;
   punditCount[t] = n;
   const b = $('#punditBtn .uses');
@@ -918,7 +920,7 @@ function setPunditUses(t, n) {
 async function refreshPunditUses(t) {
   try {
     const r = await fetch(`${PUNDIT_URL}/uses?t=${encodeURIComponent(t)}`);
-    if (r.ok) setPunditUses(t, +(await r.json()).uses);
+    if (r.ok) { const j = await r.json(); setPunditUses(t, +j.uses, +j.max); }
   } catch {}
 }
 function punditHistory(t) {
@@ -969,7 +971,7 @@ async function askPundit() {
     // 429 = refused: error 'out-of-tokens' (the free daily AI allowance is used up, resets at
     // midnight UTC) or 'limit' (this tournament has had all its verdicts).
     const j = await r.json().catch(() => ({}));
-    setPunditUses(mine.t, +j.uses);
+    setPunditUses(mine.t, +j.uses, +j.max);
     error = j.error || (r.ok ? '' : 'failed');
     text = r.ok ? String(j.text || '').trim() : '';
   } catch { error = 'failed'; }
