@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Tetragrade Press Kit | SpunjLabs</title>
+<meta name="description" content="Press kit for Tetragrade, a compulsive block-stacking roguelite by SpunjLabs. Fact sheet, descriptions, features, screenshots, logos and key art.">
+<link rel="canonical" href="https://spunjlabs.com/tetragrade-press/">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#15120e">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23070707'/%3E%3Ctext x='16' y='23' font-family='Verdana,DejaVu Sans,sans-serif' font-size='19' font-weight='700' fill='%23ffd43a' text-anchor='middle'%3ES%3C/text%3E%3Crect x='7' y='25' width='18' height='3' rx='1.5' fill='%2370ceff'/%3E%3C/svg%3E">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="SpunjLabs">
+<meta property="og:title" content="Tetragrade Press Kit | SpunjLabs">
+<meta property="og:description" content="A compulsive block-stacking roguelite about the pleasure of a perfect fit. Fact sheet, screenshots, logos and key art.">
+<meta property="og:url" content="https://spunjlabs.com/tetragrade-press/">
+<meta property="og:image" content="https://spunjlabs.com/tetragrade-press/media/keyart-wide.png">
+<meta property="og:image:width" content="1232">
+<meta property="og:image:height" content="706">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preload" as="image" href="media/hero-bg.jpg" fetchpriority="high">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caesar+Dressing&family=Spectral:ital,wght@0,400;0,500;0,700;1,400&family=Spectral+SC:wght@500&display=swap">
+<style>
+/* Layout: a temple frieze. Full-bleed painted hero, then a single 72rem column of marble
+   "tablets" on night stone, with a fact-sheet aside beside the description on wide screens. */
+:root {
+  --night: #15120e;        /* page ground: the in-game backdrop at a third brightness */
+  --stone: #201b15;        /* raised panels */
+  --rule: #4a3d2a;         /* hairlines, frames */
+  --marble: #ece6da;       /* body text, read as pale stone */
+  --muted: #b3a690;        /* captions, labels */
+  --gold: #e2b65a;         /* the one accent: coins, headings */
+  --gold-deep: #a8792c;
+  --display: "Caesar Dressing", "Trajan Pro", Georgia, serif;
+  --body: "Spectral", Georgia, "Times New Roman", serif;
+  --label: "Spectral SC", "Spectral", Georgia, serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+body { margin: 0; padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px); background: var(--night); color: var(--marble); font-family: var(--body); font-size: 1.0625rem; line-height: 1.6; }
+img { max-width: 100%; }
+a { color: var(--gold); text-underline-offset: 3px; }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+h1, h2, h3 { text-wrap: balance; font-weight: 400; }
+h2 { font-family: var(--display); color: var(--gold); font-size: clamp(1.7rem, 3vw, 2.2rem); letter-spacing: .02em; margin: 0 0 1.2rem; }
+h3 { font-family: var(--label); font-size: 1.1rem; letter-spacing: .06em; color: var(--marble); margin: 0 0 .4rem; }
+p { margin: 0 0 1em; }
+.skip { position: absolute; left: -9999px; top: 8px; background: var(--gold); color: #1d1408; padding: .4rem .8rem; border-radius: 4px; z-index: 10; }
+.skip:focus { left: 8px; }
+
+/* ---------- hero ---------- */
+.hero { position: relative; padding-inline: 16px; padding-block: clamp(3rem, 9vw, 7rem) clamp(2.5rem, 6vw, 4.5rem);
+  background: linear-gradient(180deg, rgba(21,18,14,.15) 0%, rgba(21,18,14,.55) 60%, var(--night) 100%), url("media/hero-bg.jpg") center 35% / cover no-repeat;
+  text-align: center; }
+.hero .home { position: absolute; top: 12px; left: 16px; font-family: var(--label); letter-spacing: .06em; font-size: .9rem; color: var(--marble); text-decoration: none; text-shadow: 0 1px 6px rgba(0,0,0,.9); }
+.hero .home:hover { color: var(--gold); }
+.hero h1 { margin: 0; }
+.hero img.logo { width: min(720px, 92%); filter: drop-shadow(0 6px 24px rgba(0,0,0,.6)); }
+.hero .tagline { font-size: clamp(1.15rem, 2.4vw, 1.5rem); font-style: italic; max-width: 40rem; margin: 1.2rem auto 1.8rem; text-shadow: 0 2px 10px rgba(0,0,0,.85); }
+.cta { display: flex; flex-wrap: wrap; gap: .8rem; justify-content: center; }
+.btn { display: inline-flex; align-items: center; gap: .5rem; padding: .7rem 1.4rem; border-radius: 999px; font-family: var(--label); letter-spacing: .06em; font-size: 1rem; text-decoration: none; border: 1px solid var(--gold); }
+.btn.primary { background: linear-gradient(180deg, #f1cf7d, var(--gold-deep)); color: #1d1408; border-color: #f6dc97; }
+.btn.ghost { background: rgba(21,18,14,.7); color: var(--gold); }
+
+/* ---------- page column ---------- */
+main { max-width: 72rem; margin: 0 auto; padding-inline: 16px; padding-block: 1rem 4rem; display: grid; gap: clamp(3rem, 6vw, 4.5rem); }
+section { min-width: 0; }
+.meander { height: 10px; background:
+  repeating-linear-gradient(90deg, var(--rule) 0 2px, transparent 2px 14px),
+  linear-gradient(var(--rule), var(--rule)) top / 100% 1px no-repeat,
+  linear-gradient(var(--rule), var(--rule)) bottom / 100% 1px no-repeat; opacity: .8; margin-bottom: 1.6rem; }
+
+/* intro: description + fact sheet */
+.intro { display: grid; grid-template-columns: minmax(0, 1fr) 20rem; gap: 2.5rem; align-items: start; }
+.intro .copy { max-width: 42rem; }
+.facts { background: var(--stone); border: 1px solid var(--rule); border-radius: 6px; padding: 1.4rem 1.5rem; }
+.facts dl { margin: 0; display: grid; gap: .85rem; }
+.facts dt { font-family: var(--label); color: var(--muted); font-size: .85rem; letter-spacing: .08em; }
+.facts dd { margin: 0; }
+
+.copyblock { background: var(--stone); border: 1px solid var(--rule); border-radius: 6px; padding: 1rem 1.2rem; margin-bottom: 1rem; }
+.copyblock header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: .5rem; }
+.copyblock header span { font-family: var(--label); color: var(--muted); font-size: .85rem; letter-spacing: .08em; }
+.copyblock p:last-child { margin-bottom: 0; }
+button.copy { font: inherit; font-family: var(--label); font-size: .85rem; letter-spacing: .06em; color: var(--gold); background: transparent; border: 1px solid var(--rule); border-radius: 999px; padding: .25rem .8rem; cursor: pointer; }
+button.copy:hover { border-color: var(--gold); }
+
+/* features */
+.features { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1.6rem 2rem; }
+.features div { min-width: 0; border-top: 1px solid var(--rule); padding-top: .9rem; }
+.features p { color: var(--muted); margin: 0; }
+
+/* pantheon table */
+.gods { width: 100%; border-collapse: collapse; }
+.gods th { text-align: left; font-family: var(--label); font-weight: 500; color: var(--muted); font-size: .85rem; letter-spacing: .08em; padding: .5rem .8rem; border-bottom: 1px solid var(--rule); }
+.gods td { padding: .65rem .8rem; border-bottom: 1px solid rgba(74,61,42,.5); vertical-align: top; }
+.gods td:first-child { font-family: var(--label); color: var(--gold); white-space: nowrap; }
+.gods td.demo { color: var(--muted); font-size: .95rem; white-space: nowrap; }
+.scroll { overflow-x: auto; }
+
+/* biomes */
+.climb { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; }
+.climb div { background: var(--stone); border: 1px solid var(--rule); border-radius: 6px; padding: 1rem 1.1rem; }
+.climb .lv { font-family: var(--label); color: var(--muted); font-size: .85rem; letter-spacing: .08em; }
+.climb p { margin: .3rem 0 0; color: var(--muted); font-size: .95rem; }
+
+/* media */
+.shots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.2rem; }
+figure { margin: 0; min-width: 0; }
+figure a { display: block; border: 1px solid var(--rule); border-radius: 4px; overflow: hidden; }
+figure img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; transition: transform .3s ease; }
+figure a:hover img { transform: scale(1.02); }
+figcaption { color: var(--muted); font-size: .92rem; margin-top: .4rem; }
+.art { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: 1.2rem; margin-top: 2rem; }
+.art figure a { background: repeating-conic-gradient(#221d17 0 25%, #1a1611 0 50%) 0 0 / 16px 16px; display: grid; place-items: center; aspect-ratio: 4 / 3; padding: .8rem; }
+.art figure img { aspect-ratio: auto; max-height: 100%; width: auto; max-width: 100%; object-fit: contain; }
+.note { color: var(--muted); font-size: .95rem; }
+
+/* about + contact */
+.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2.5rem; }
+.contact { background: var(--stone); border: 1px solid var(--gold-deep); border-radius: 6px; padding: 1.4rem 1.5rem; }
+.contact .addr { font-size: 1.2rem; word-break: break-all; }
+footer { text-align: center; color: var(--muted); font-size: .9rem; padding-inline: 16px; padding-block: 0 3rem; }
+footer img { width: 120px; opacity: .85; display: block; margin: 0 auto .6rem; }
+footer nav { margin-top: .6rem; display: flex; flex-wrap: wrap; gap: .4rem 1.2rem; justify-content: center; }
+
+@media (max-width: 820px) {
+  .intro, .two { grid-template-columns: 1fr; }
+  .climb { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .shots { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) { figure img { transition: none; } }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="hero">
+  <a class="home" href="../">&larr; SpunjLabs</a>
+  <h1><img class="logo" src="media/logo.png" alt="Tetragrade" width="1280" height="330"></h1>
+  <p class="tagline">A compulsive block-stacking roguelite about the pleasure of a perfect fit.</p>
+  <div class="cta">
+    <a class="btn primary" href="https://store.steampowered.com/app/5144340/Tetragrade/" target="_blank" rel="noopener">Play the free demo on Steam</a>
+    <a class="btn ghost" href="#media">Screenshots &amp; logos</a>
+  </div>
+</header>
+
+<main id="main">
+
+  <section class="intro" aria-labelledby="about-game">
+    <div class="copy">
+      <div class="meander"></div>
+      <h2 id="about-game">The game</h2>
+      <p>Tetragrade is falling-block puzzling with a roguelite meta-game wrapped around it. You are a humble farmer, chosen by Zeus to prove your worth. Every line you clear pays out in gold, and the coins tumble as real physics objects into an offering bowl beside the board.</p>
+      <p>Your first run lasts just 90 seconds. Between runs you spend your gold at the Temple of the Gods, where ten deities offer permanent blessings. Each one changes how you play rather than adding a number: Midas turns a falling piece to solid gold, Ares hurls a spear into the deepest well, Epimetheus lets you take back a mistake, and Zeus clears the bottom of the board with a single bolt of lightning.</p>
+      <p>The run itself is a climb. Your level is your altitude, and the world changes around you as you go higher, from farmland to a market town, up the mountain and finally to Olympus. Where your run ends shows how far your build has come.</p>
+
+      <div class="copyblock">
+        <header><span>Short description</span><button class="copy" type="button" data-copy="short">Copy</button></header>
+        <p id="short">A compulsive block-stacking roguelite about the pleasure of a perfect fit. Clear lines, earn gold, and spend it on the blessings of ten Greek gods as you climb from the farmland to Olympus.</p>
+      </div>
+      <div class="copyblock">
+        <header><span>One-line pitch</span><button class="copy" type="button" data-copy="pitch">Copy</button></header>
+        <p id="pitch">Falling-block puzzling meets Balatro-style score chasing, with ten Greek gods selling you the power to break the rules.</p>
+      </div>
+    </div>
+
+    <aside class="facts" aria-label="Fact sheet">
+      <dl>
+        <div><dt>Developer &amp; publisher</dt><dd>SpunjLabs</dd></div>
+        <div><dt>Release</dt><dd>Q1 2027</dd></div>
+        <div><dt>Free demo</dt><dd>Out now on Steam</dd></div>
+        <div><dt>Platforms</dt><dd>Windows (Steam)<br>Steam Deck</dd></div>
+        <div><dt>Price</dt><dd>To be announced</dd></div>
+        <div><dt>Genre</dt><dd>Falling-block puzzle, roguelite, score attack</dd></div>
+        <div><dt>Players</dt><dd>Single-player, with Steam leaderboards</dd></div>
+        <div><dt>Controls</dt><dd>Full controller support, keyboard</dd></div>
+        <div><dt>Language</dt><dd>English</dd></div>
+        <div><dt>Steam</dt><dd><a href="https://store.steampowered.com/app/5144340/Tetragrade/" target="_blank" rel="noopener">store.steampowered.com/app/5144340</a></dd></div>
+        <div><dt>Press contact</dt><dd><a href="mailto:spunjlabs@gmail.com">spunjlabs@gmail.com</a></dd></div>
+      </dl>
+    </aside>
+  </section>
+
+  <section aria-labelledby="features">
+    <div class="meander"></div>
+    <h2 id="features">Features</h2>
+    <div class="features">
+      <div><h3>A pile of real gold</h3><p>Every coin you earn is a physics object. Big clears throw a shower of rings, gold, silver and bronze into the offering bowl, and you watch the pile grow all run.</p></div>
+      <div><h3>Ten gods, real choices</h3><p>Ten permanent upgrades across dozens of tiers. Some are powers you trigger mid-run, others quietly reshape the odds. Most must be earned before they can be bought.</p></div>
+      <div><h3>Bet on gold</h3><p>Gold pieces score five times as much. Fill a whole row with solid gold for a Gold Rush and a coin bounty.</p></div>
+      <div><h3>Beat the clock</h3><p>Runs are timed. Survive to the buzzer and you bank your coins. Top out and the gods take them back.</p></div>
+      <div><h3>The climb to Olympus</h3><p>Four hand-painted regions, each with its own music, weather and ambience. Reaching Olympus is the win, and endless mode waits beyond it.</p></div>
+      <div><h3>Built for the couch and the Deck</h3><p>Full controller support with Xbox and PlayStation button prompts, rumble, global and friends leaderboards, and 16 achievements.</p></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="pantheon">
+    <div class="meander"></div>
+    <h2 id="pantheon">The pantheon</h2>
+    <div class="scroll">
+      <table class="gods">
+        <thead><tr><th scope="col">God</th><th scope="col">Blessing</th><th scope="col">In the demo</th></tr></thead>
+        <tbody>
+          <tr><td>Chronos</td><td>Lengthens every run, from 90 seconds up to four and a half minutes.</td><td class="demo">Up to 3:00</td></tr>
+          <tr><td>Prometheus</td><td>Foresight: reveals the pieces coming next.</td><td class="demo">Tier 1</td></tr>
+          <tr><td>Gaia</td><td>Raises the walls of the board for more room to stack.</td><td class="demo">Tier 2</td></tr>
+          <tr><td>Plutus</td><td>Coin Magnet: every clear pays more gold.</td><td class="demo">Tier 3</td></tr>
+          <tr><td>Midas</td><td>Touch the falling piece and turn it to solid gold.</td><td class="demo">Tier 1</td></tr>
+          <tr><td>Tyche</td><td>Luck: gold pieces fall more often.</td><td class="demo">Full game</td></tr>
+          <tr><td>Aion</td><td>Ouroboros stones that pay back time when cleared.</td><td class="demo">Full game</td></tr>
+          <tr><td>Epimetheus</td><td>Rewind: take back your last placement.</td><td class="demo">Full game</td></tr>
+          <tr><td>Ares</td><td>Turn any falling piece into a four-long spear.</td><td class="demo">Full game</td></tr>
+          <tr><td>Zeus</td><td>Lightning that clears the bottom four rows at once.</td><td class="demo">Full game</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section aria-labelledby="climb">
+    <div class="meander"></div>
+    <h2 id="climb">The climb</h2>
+    <div class="climb">
+      <div><span class="lv">Levels 1–3</span><h3>Farmland</h3><p>Where every run begins. Pollen on the breeze.</p></div>
+      <div><span class="lv">Levels 4–6</span><h3>Town</h3><p>A market square, a bronze bell, a quicker tempo.</p></div>
+      <div><span class="lv">Levels 7–9</span><h3>Mountain</h3><p>Dust squalls off the scree and battle drums.</p></div>
+      <div><span class="lv">Level 10+</span><h3>Olympus</h3><p>Storm, fire and the gods' own music. Then endless mode.</p></div>
+    </div>
+    <p class="note" style="margin-top:1rem">The free demo includes five gods and runs of up to three minutes, which is enough for skilled players to reach the Mountain. Olympus is saved for the full game. Demo progress carries over when you buy.</p>
+  </section>
+
+  <section id="media" aria-labelledby="media-h">
+    <div class="meander"></div>
+    <h2 id="media-h">Screenshots</h2>
+    <p class="note">Click any image to open it at full 2560 × 1440 resolution.</p>
+    <div class="shots">
+      <figure><a href="media/shot-gold-triple.jpg" target="_blank"><img src="media/shot-gold-triple.jpg" alt="A triple line clear through a stack of gold pieces, coins flying into the bowl" loading="lazy"></a><figcaption>A triple through solid gold. Gold pieces score five times as much.</figcaption></figure>
+      <figure><a href="media/shot-combo.jpg" target="_blank"><img src="media/shot-combo.jpg" alt="A combo clear with coins piling up in the offering bowl" loading="lazy"></a><figcaption>Every coin you earn lands in the bowl as a physics object.</figcaption></figure>
+      <figure><a href="media/shot-temple.jpg" target="_blank"><img src="media/shot-temple.jpg" alt="The Temple of the Gods upgrade screen with ten marble tiles, some chained" loading="lazy"></a><figcaption>The Temple of the Gods. Chained gods must be earned before they can be bought.</figcaption></figure>
+      <figure><a href="media/shot-double.jpg" target="_blank"><img src="media/shot-double.jpg" alt="A double line clear in a market town setting" loading="lazy"></a><figcaption>Climbing into the Town.</figcaption></figure>
+      <figure><a href="media/shot-menu.jpg" target="_blank"><img src="media/shot-menu.jpg" alt="The Tetragrade main menu over a painted Greek farmland" loading="lazy"></a><figcaption>Main menu.</figcaption></figure>
+      <figure><a href="media/shot-chronos.jpg" target="_blank"><img src="media/shot-chronos.jpg" alt="End of run screen reading Chronos Calls with 416 coins banked" loading="lazy"></a><figcaption>Survive to the buzzer and your coins are banked.</figcaption></figure>
+    </div>
+
+    <h2 style="margin-top:3rem">Logos &amp; key art</h2>
+    <div class="art">
+      <figure><a href="media/logo.png" target="_blank"><img src="media/logo.png" alt="Tetragrade logo, transparent" loading="lazy"></a><figcaption>Logo, transparent PNG, 1280 × 330</figcaption></figure>
+      <figure><a href="media/keyart-wide.png" target="_blank"><img src="media/keyart-wide.png" alt="Tetragrade key art, landscape" loading="lazy"></a><figcaption>Key art, landscape, 1232 × 706</figcaption></figure>
+      <figure><a href="media/keyart-portrait.png" target="_blank"><img src="media/keyart-portrait.png" alt="Tetragrade key art, portrait" loading="lazy"></a><figcaption>Key art, portrait, 600 × 900</figcaption></figure>
+      <figure><a href="media/keyart-header.png" target="_blank"><img src="media/keyart-header.png" alt="Tetragrade header capsule" loading="lazy"></a><figcaption>Header, 920 × 430</figcaption></figure>
+      <figure><a href="media/icon.png" target="_blank"><img src="media/icon.png" alt="Tetragrade icon" loading="lazy"></a><figcaption>Icon, 684 × 684</figcaption></figure>
+      <figure><a href="media/wallpaper-farmland.jpg" target="_blank"><img src="media/wallpaper-farmland.jpg" alt="Farmland painting used on the main menu" loading="lazy"></a><figcaption>Farmland painting, 3840 × 2160</figcaption></figure>
+    </div>
+    <p class="note" style="margin-top:1rem">Trailer: watch it on the <a href="https://store.steampowered.com/app/5144340/Tetragrade/" target="_blank" rel="noopener">Steam page</a>.</p>
+  </section>
+
+  <section class="two" aria-label="Studio and contact">
+    <div>
+      <div class="meander"></div>
+      <h2>About SpunjLabs</h2>
+      <p>SpunjLabs is the one-person studio of Paul Foxley, who designed, programmed and painted Tetragrade, built in the Godot engine. Tetragrade is the studio's debut on Steam.</p>
+      <p class="note">Music by Joel R. Steudler, licensed under CC BY 4.0.</p>
+    </div>
+    <div>
+      <div class="meander"></div>
+      <h2>Streaming &amp; contact</h2>
+      <p>You are welcome to stream Tetragrade and monetise videos of it. No permission needed. Demo keys are not required: the demo is free to everyone on Steam.</p>
+      <div class="contact">
+        <h3>Press &amp; creator enquiries</h3>
+        <p class="addr"><a href="mailto:spunjlabs@gmail.com">spunjlabs@gmail.com</a></p>
+        <p class="note" style="margin:0">Review keys for the full game will be available closer to launch.</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <a href="../"><img src="media/spunjlabs.png" alt="SpunjLabs"></a>
+  © 2026 SpunjLabs. All rights reserved.
+  <nav aria-label="Footer">
+    <a href="../">SpunjLabs home</a>
+    <a href="../tetragrade.html">Tetragrade</a>
+    <a href="mailto:spunjlabs@gmail.com">Contact</a>
+  </nav>
+</footer>
+
+<script>
+document.querySelectorAll("button.copy").forEach(function (btn) {
+  btn.addEventListener("click", function () {
+    var el = document.getElementById(btn.dataset.copy);
+    var done = function () { btn.textContent = "Copied"; setTimeout(function () { btn.textContent = "Copy"; }, 1500); };
+    var fallback = function () { var r = document.createRange(); r.selectNodeContents(el); var s = getSelection(); s.removeAllRanges(); s.addRange(r); btn.textContent = "Selected"; };
+    try { navigator.clipboard.writeText(el.textContent.trim()).then(done, fallback); } catch (e) { fallback(); }
+  });
+});
+</script>
+</body>
+</html>
