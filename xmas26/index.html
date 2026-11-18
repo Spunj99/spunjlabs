@@ -118,6 +118,9 @@ input[type=text],input[type=url],input[type=number]{font:inherit;color:var(--fg)
   background-image:repeating-linear-gradient(90deg,var(--holly) 0 14px,var(--red) 14px 28px);background-size:100% 6px;background-repeat:no-repeat;padding-top:22px}
 .add h2{font-family:var(--script);font-weight:700;font-size:32px;color:var(--red);margin:0;line-height:1}
 .grid3{display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px}
+.photorow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.photorow img{width:56px;height:56px;border-radius:10px;border:1px solid var(--line);object-fit:cover;background:var(--photo)}
+.photorow .ilink{cursor:pointer}
 .grid3 label{display:grid;gap:4px;font:800 12px var(--display);color:var(--muted);text-transform:uppercase;letter-spacing:.06em;min-width:0}
 .btn{font:800 16px var(--display);background:var(--red);color:#fff;border:0;border-radius:12px;padding:10px 20px;cursor:pointer;justify-self:start;box-shadow:0 4px 0 var(--red-deep)}
 .btn:active{transform:translateY(2px);box-shadow:0 2px 0 var(--red-deep)}
@@ -207,11 +210,18 @@ input[type=text],input[type=url],input[type=number]{font:inherit;color:var(--fg)
       <label for="fRef">Ref no.<input type="text" id="fRef" placeholder="253668"></label>
       <label for="fBuyer">Santa's helper<input type="text" id="fBuyer" list="buyers" placeholder="Nana"></label>
     </div>
+    <div class="photorow">
+      <img id="fPreview" alt="" hidden>
+      <label class="ilink" for="fPhoto"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.5" fill="none" stroke="currentColor" stroke-width="2.2"/></svg><span id="fPhotoLbl">Add a photo (optional)</span></label>
+      <button class="link-btn" id="fPhotoClear" type="button" hidden>Remove photo</button>
+      <input type="file" id="fPhoto" accept="image/*" hidden>
+    </div>
     <button class="btn" id="addBtn" type="submit">Add to the list</button>
     <p class="note" id="roNote" hidden>This device has been locked. Reload and enter the PIN to make changes.</p>
   </form>
   <datalist id="buyers"></datalist>
-  <p class="note">Photos are from our shop visit. Prices are what the shelf tags showed on 25 Oct 2026 and may change. Changes save straight away for everyone with the PIN. <button class="link-btn" id="lockBtn" type="button">Lock this device</button></p>
+  <input type="file" id="photoPick" accept="image/*" hidden>
+  <p class="note">Photos are from our shop visit, the makers or uploads. Prices are what the shelf tags showed on 25 Oct 2026 and may change. Changes save straight away for everyone with the PIN. <button class="link-btn" id="lockBtn" type="button">Lock this device</button></p>
   </div>
 </div>
 <div id="toast" hidden role="status"></div>
@@ -248,11 +258,21 @@ function safeUrl(u){return typeof u==="string"&&/^https:\/\//i.test(u)?u:null}
 /* button label for a shop link: known shops by name, otherwise the site name from the address (argos.co.uk -> Argos) */
 const SHOPS={smythstoys:"Smyths",amazon:"Amazon",argos:"Argos",johnlewis:"John Lewis",ebay:"eBay",lego:"LEGO",theentertainer:"The Entertainer",hamleys:"Hamleys",very:"Very",tesco:"Tesco",asda:"Asda",sainsburys:"Sainsbury's",currys:"Currys",next:"Next",boots:"Boots",whsmith:"WHSmith",waterstones:"Waterstones",hobbycraft:"Hobbycraft",etsy:"Etsy"};
 function shopName(u){try{const parts=new URL(u).hostname.replace(/^www\./,"").split(".");const i=parts.length>2&&/^(co|com|org|net)$/.test(parts[parts.length-2])?parts.length-3:parts.length-2;const k=parts[Math.max(0,i)];return SHOPS[k]||k.charAt(0).toUpperCase()+k.slice(1)}catch(e){return "Shop"}}
-function safeImg(p){return typeof p==="string"&&/^img\/[a-z0-9-]+\.jpg$/.test(p)?p:null}
+function safeImg(p){return typeof p==="string"&&(/^img\/[a-z0-9-]+\.jpg$/.test(p)||/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(p))?p:null}
+/* uploaded photos are shrunk on the device to a 600px white square JPEG (~40-80KB) and stored in the item doc itself */
+async function shrinkPhoto(file){
+  let src;
+  try{src=await createImageBitmap(file,{imageOrientation:"from-image"})}
+  catch(e){src=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=URL.createObjectURL(file)})}
+  const S=600,pad=18,sc=Math.min((S-2*pad)/src.width,(S-2*pad)/src.height),w=Math.round(src.width*sc),h=Math.round(src.height*sc);
+  const c=document.createElement("canvas");c.width=c.height=S;const x=c.getContext("2d");
+  x.fillStyle="#fff";x.fillRect(0,0,S,S);x.imageSmoothingQuality="high";x.drawImage(src,(S-w)/2,(S-h)/2,w,h);
+  return c.toDataURL("image/jpeg",.82);
+}
 
 async function save(id,patch){
   if(!db||!canWrite) return;
-  try{await fs.updateDoc(itemDoc(id),patch)}
+  try{await fs.updateDoc(itemDoc(id),patch);return true}
   catch(e){ if(e&&e.code==="permission-denied"){setReadOnly();toast("This device isn't unlocked any more")} else toast("Couldn't save. Try again") }
 }
 function setReadOnly(){canWrite=false;$("roNote").hidden=false;$("addBtn").disabled=true;render()}
@@ -346,7 +366,9 @@ function render(){
         const y=el("button","link-btn danger","Yes, remove");y.type="button";y.onclick=async()=>{pendingDelete=null;try{await fs.deleteDoc(itemDoc(it.id));toast("Removed")}catch(e){toast("Couldn't remove it")}};
         const no=el("button","link-btn","Keep it");no.type="button";no.onclick=()=>{pendingDelete=null;render()};
         end.append(y,no);
-      }else{const r=el("button","link-btn","Remove");r.type="button";r.onclick=()=>{pendingDelete=it.id;render()};end.append(r)}
+      }else{
+        const p=el("button","link-btn",src?"Change photo":"Add photo");p.type="button";p.onclick=()=>{photoFor=it.id;$("photoPick").value="";$("photoPick").click()};
+        const r=el("button","link-btn","Remove");r.type="button";r.onclick=()=>{pendingDelete=it.id;render()};end.append(p,r)}
       body.append(end);
     }
     return card;
@@ -359,14 +381,25 @@ try{const s=localStorage.getItem("xmas26-sort");if(s&&[...$("sort").options].som
 $("sort").addEventListener("change",()=>{try{localStorage.setItem("xmas26-sort",$("sort").value)}catch(e){}render()});
 document.querySelectorAll(".chip").forEach(b=>b.addEventListener("click",()=>{filter=b.dataset.f;document.querySelectorAll(".chip").forEach(x=>x.setAttribute("aria-pressed",x===b));render()}));
 
+let newPhoto=null, photoFor=null;
+function setNewPhoto(d){newPhoto=d;$("fPreview").hidden=!d;if(d)$("fPreview").src=d;else $("fPreview").removeAttribute("src");
+  $("fPhotoLbl").textContent=d?"Change photo":"Add a photo (optional)";$("fPhotoClear").hidden=!d;$("fPhoto").value=""}
+$("fPhoto").addEventListener("change",async()=>{const f=$("fPhoto").files[0];if(!f)return;
+  try{setNewPhoto(await shrinkPhoto(f))}catch(e){toast("Couldn't read that photo")}});
+$("fPhotoClear").addEventListener("click",()=>setNewPhoto(null));
+$("photoPick").addEventListener("change",async()=>{const f=$("photoPick").files[0],id=photoFor;photoFor=null;if(!f||!id)return;
+  toast("Uploading photo…");
+  try{if(await save(id,{img:await shrinkPhoto(f)}))toast("Photo updated")}catch(e){toast("Couldn't read that photo")}});
+
 $("addForm").addEventListener("submit",async e=>{
   e.preventDefault(); if(!db||!canWrite) return;
   const name=$("fName").value.trim(); if(!name) return;
   const price=parseFloat($("fPrice").value);
   const url=$("fUrl").value.trim();
   const doc={name,brand:$("fBrand").value.trim(),price:isNaN(price)?null:price,ref:$("fRef").value.trim(),url:safeUrl(url)||"",buyer:$("fBuyer").value.trim(),informed:false,purchased:false,order:Date.now()};
+  if(newPhoto) doc.img=newPhoto;
   $("addBtn").disabled=true;
-  try{await fs.addDoc(fs.collection(fdb,"wishlists",WL,"items"),doc);e.target.reset();toast("Added "+name+" to the list")}
+  try{await fs.addDoc(fs.collection(fdb,"wishlists",WL,"items"),doc);e.target.reset();setNewPhoto(null);toast("Added "+name+" to the list")}
   catch(err){if(err&&err.code==="permission-denied"){setReadOnly()}else toast("Couldn't add it. Try again")}
   finally{if(canWrite)$("addBtn").disabled=false}
 });
