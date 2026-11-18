@@ -61,6 +61,10 @@ h1 small{display:block;font-family:var(--display);font-size:.32em;letter-spacing
 
 /* filters */
 .chips{display:flex;gap:8px;flex-wrap:wrap}
+.bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+.sort{display:flex;align-items:center;gap:8px;margin-left:auto}
+.sort span{font:800 12px var(--display);color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.sort select{font:800 13px var(--body);color:var(--fg);background:var(--surface);border:2px solid var(--line);border-radius:99px;padding:6px 12px;cursor:pointer}
 .search{position:relative}
 .search svg{position:absolute;left:14px;top:50%;margin-top:-9px;color:var(--muted);pointer-events:none}
 .search input[type=search]{font:600 16px var(--body);color:var(--fg);background:var(--surface);border:2px solid var(--line);border-radius:99px;padding:10px 16px 10px 42px;width:100%}
@@ -172,11 +176,14 @@ input[type=text],input[type=url],input[type=number]{font:inherit;color:var(--fg)
 
   <div class="app" id="app" hidden>
   <div class="search"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M15.5 15.5 21 21" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" fill="none"/></svg><input type="search" id="q" placeholder="Search presents, brands, helpers…" aria-label="Search the list" autocomplete="off"></div>
+  <div class="bar">
   <div class="chips" role="group" aria-label="Filter">
     <button class="chip" data-f="all" aria-pressed="true">Everything</button>
     <button class="chip" data-f="none" aria-pressed="false">Needs a helper</button>
     <button class="chip" data-f="claimed" aria-pressed="false">Claimed</button>
     <button class="chip" data-f="bought" aria-pressed="false">Bought</button>
+  </div>
+  <label class="sort"><span>Sort</span><select id="sort"><option value="list">List order</option><option value="price-asc">Price: low to high</option><option value="price-desc">Price: high to low</option><option value="az">A to Z</option></select></label>
   </div>
 
   <div id="list">
@@ -268,6 +275,9 @@ function render(){
   const list=$("list");
   const q=$("q").value.trim().toLowerCase();
   const shown=items.filter(i=>{const s=status(i);if(q&&![i.name,i.brand,i.ref,i.note,i.buyer].join(" ").toLowerCase().includes(q))return false;return filter==="all"||(filter==="claimed"?(s==="claimed"||s==="told"):s===filter)});
+  const sort=$("sort").value, pr=i=>i.price==null||i.price===""?null:+i.price;
+  if(sort==="az") shown.sort((a,b)=>(a.name||"").localeCompare(b.name||"","en-GB",{sensitivity:"base"}));
+  else if(sort.startsWith("price")){const d=sort==="price-asc"?1:-1;shown.sort((a,b)=>{const x=pr(a),y=pr(b);if(x==null||y==null)return (x==null)-(y==null);return (x-y)*d})}
   if(!items.length){const e=el("div","empty");e.innerHTML="No presents yet. Use <b>Add a present</b> below to put the first one on.";list.replaceChildren(e);return}
   if(!shown.length){list.replaceChildren(el("div","empty",q?"No presents match “"+$("q").value.trim()+"”.":"Nothing under the tree in this view."));return}
 
@@ -337,6 +347,8 @@ function render(){
 }
 
 $("q").addEventListener("input",render);
+try{const s=localStorage.getItem("xmas26-sort");if(s&&[...$("sort").options].some(o=>o.value===s))$("sort").value=s}catch(e){}
+$("sort").addEventListener("change",()=>{try{localStorage.setItem("xmas26-sort",$("sort").value)}catch(e){}render()});
 document.querySelectorAll(".chip").forEach(b=>b.addEventListener("click",()=>{filter=b.dataset.f;document.querySelectorAll(".chip").forEach(x=>x.setAttribute("aria-pressed",x===b));render()}));
 
 $("addForm").addEventListener("submit",async e=>{
