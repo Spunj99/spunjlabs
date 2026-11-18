@@ -203,7 +203,7 @@ input[type=text],input[type=url],input[type=number]{font:inherit;color:var(--fg)
       <label for="fBrand">Brand<input type="text" id="fBrand" placeholder="LEGO"></label>
     </div>
     <div class="grid3">
-      <label for="fUrl">Smyths link (optional)<input type="url" id="fUrl" placeholder="https://www.smythstoys.com/…"></label>
+      <label for="fUrl">Shop link (optional)<input type="url" id="fUrl" placeholder="https://…"></label>
       <label for="fRef">Ref no.<input type="text" id="fRef" placeholder="253668"></label>
       <label for="fBuyer">Santa's helper<input type="text" id="fBuyer" list="buyers" placeholder="Nana"></label>
     </div>
@@ -245,6 +245,9 @@ let toastT; function toast(m){const t=$("toast");t.textContent=m;t.hidden=false;
 function status(it){return it.purchased?"bought":it.informed?"told":(it.buyer||"").trim()?"claimed":"none"}
 const LABEL={none:"Needs a helper",claimed:"Claimed",told:"Helper told",bought:"Bought & hidden"};
 function safeUrl(u){return typeof u==="string"&&/^https:\/\//i.test(u)?u:null}
+/* button label for a shop link: known shops by name, otherwise the site name from the address (argos.co.uk -> Argos) */
+const SHOPS={smythstoys:"Smyths",amazon:"Amazon",argos:"Argos",johnlewis:"John Lewis",ebay:"eBay",lego:"LEGO",theentertainer:"The Entertainer",hamleys:"Hamleys",very:"Very",tesco:"Tesco",asda:"Asda",sainsburys:"Sainsbury's",currys:"Currys",next:"Next",boots:"Boots",whsmith:"WHSmith",waterstones:"Waterstones",hobbycraft:"Hobbycraft",etsy:"Etsy"};
+function shopName(u){try{const parts=new URL(u).hostname.replace(/^www\./,"").split(".");const i=parts.length>2&&/^(co|com|org|net)$/.test(parts[parts.length-2])?parts.length-3:parts.length-2;const k=parts[Math.max(0,i)];return SHOPS[k]||k.charAt(0).toUpperCase()+k.slice(1)}catch(e){return "Shop"}}
 function safeImg(p){return typeof p==="string"&&/^img\/[a-z0-9-]+\.jpg$/.test(p)?p:null}
 
 async function save(id,patch){
@@ -320,7 +323,7 @@ function render(){
     const links=el("div","links");
     links.append(iconLink("https://www.google.com/search?q="+encodeURIComponent(it.name||""),ICON_SEARCH,"Google","Search Google for "+(it.name||"this present")));
     const u=safeUrl(it.url);
-    if(u&&!it.urlIsSearch) links.append(iconLink(u,ICON_BAG,"Smyths","Open on Smyths: "+(it.name||"")));
+    if(u&&!it.urlIsSearch){const shop=shopName(u);links.append(iconLink(u,ICON_BAG,shop,"Open on "+shop+": "+(it.name||"")))}
     body.append(links);
     card.append(body);
 
