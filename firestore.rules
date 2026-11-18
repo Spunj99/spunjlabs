@@ -50,6 +50,25 @@ service cloud.firestore {
         && request.resource.data.pin == get(/databases/$(db)/documents/secrets/$(t)).data.pin;
     }
 
+    // Christmas wish lists (spunjlabs.com/xmas26). Private: only PIN-unlocked devices can read or write.
+    //   wishSecrets/{w} { pin: "..." }   create by hand in the console (or as admin)
+    function isWishMember(w) { return signedIn() && exists(/databases/$(db)/documents/wishMembers/$(w)/members/$(request.auth.uid)); }
+
+    match /wishlists/{w}/items/{i} {
+      allow read, write: if isWishMember(w) || isAdmin();
+    }
+
+    match /wishSecrets/{w} {
+      allow read: if false;
+      allow write: if isAdmin();
+    }
+
+    match /wishMembers/{w}/members/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.pin == get(/databases/$(db)/documents/wishSecrets/$(w)).data.pin;
+    }
+
     match /admins/{uid} {
       allow read: if signedIn() && request.auth.uid == uid;
       allow create, update: if signedIn() && request.auth.uid == uid
